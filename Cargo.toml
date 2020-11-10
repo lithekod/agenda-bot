@@ -1,0 +1,12 @@
+[package]
+name = "agenda-bot"
+version = "0.1.0"
+authors = ["Gustav Sörnäs <gustav@sornas.net>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+serenity = "0.9" # discord api
+slack_api = "0.23"
+tokio = { version = "0.2", features = ["full"] }
