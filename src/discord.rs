@@ -76,7 +76,7 @@ async fn receive_from_slack(
                             &point.to_add_message(),
                             "",
                             false
-        );
+        ).unwrap();
     }
 
 }

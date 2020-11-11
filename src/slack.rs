@@ -39,7 +39,7 @@ impl slack::EventHandler for Handler {
                         self.sender().send(AgendaPoint{
                             title: msg.text.unwrap_or("??".to_string()),
                             adder: msg.user.unwrap_or("??".to_string()),
-                        });
+                        }).unwrap();
                     }
                     _ => {}
                 }
@@ -71,7 +71,7 @@ pub async fn handle(
 
     let slack_sender = client.sender().clone();
 
-    join!(
+    let (_, _) = join!(
         spawn_blocking(move || {
             let mut handler = Handler::new(sender);
             match client.run(&mut handler) {
