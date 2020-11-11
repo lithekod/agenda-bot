@@ -17,14 +17,16 @@ use tokio::{
     },
 };
 
+const TOKEN: Option<&str> = None;
+const CHANNEL: Option<u64> = None;
+
 pub async fn handle(
-    token: Option<String>,
     sender: mpsc::UnboundedSender<AgendaPoint>,
     receiver: mpsc::UnboundedReceiver<AgendaPoint>,
 ) {
     println!("Setting up Discord");
 
-    let token = std::env::var("DISCORD_API_TOKEN").unwrap_or(token.unwrap());
+    let token = std::env::var("DISCORD_API_TOKEN").unwrap_or_else(|_| TOKEN.expect("Missing Discord token").to_string());
     let client = Discord::from_bot_token(&token);
 
     if let Ok(client) = client {
@@ -72,10 +74,16 @@ async fn receive_from_slack(
 ) {
     while let Some(point) = receiver.recv().await {
         println!("Discord received '{}'", point);
-        client.send_message(ChannelId(697057150106599488), //TODO
-                            &point.to_add_message(),
-                            "",
-                            false
+        client.send_message(
+            ChannelId(
+                match std::env::var("DISCORD_CHANNEL") {
+                    Ok(var) => var.parse().unwrap(),
+                    Err(_) => CHANNEL.expect("Missing Discord channel"),
+                }
+            ),
+            &point.to_add_message(),
+            "",
+            false
         ).unwrap();
     }
 

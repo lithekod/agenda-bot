@@ -13,6 +13,9 @@ use tokio::{
     },
 };
 
+const TOKEN: Option<&str> = None;
+const CHANNEL: Option<&str> = None;
+
 struct Handler {
     sender: mpsc::UnboundedSender<AgendaPoint>,
 }
@@ -58,13 +61,12 @@ impl slack::EventHandler for Handler {
 }
 
 pub async fn handle(
-    token: Option<String>,
     sender: mpsc::UnboundedSender<AgendaPoint>,
     receiver: mpsc::UnboundedReceiver<AgendaPoint>,
 ) {
     println!("Setting up Slack");
 
-    let token = std::env::var("SLACK_API_TOKEN").unwrap_or(token.unwrap());
+    let token = std::env::var("SLACK_API_TOKEN").unwrap_or_else(|_| TOKEN.expect("Missing slack token").to_string());
     let client = spawn_blocking(move || {
         slack::RtmClient::login(&token).unwrap()
     }).await.unwrap();
@@ -90,12 +92,11 @@ async fn receive_from_discord(
     sender: slack::Sender,
 ) {
     while let Some(point) = receiver.recv().await {
-        println!("Slack received '{}'", point);
         //TODO Sending messages is very slow sometimes. Have seen delays
         // from 5 up to 20(!) seconds.
-        sender.send_typing("CPBAA5FA7").unwrap();
-        println!("Typing");
-        sender.send_message("CPBAA5FA7", &point.to_add_message()).unwrap();
-        println!("Sent");
+        let channel = std::env::var("SLACK_CHANNEL").unwrap_or_else(|_| CHANNEL.expect("Missing slack channel").to_string());
+        sender.send_typing(&channel).unwrap();
+        sender.send_message(&channel, &point.to_add_message()).unwrap();
+        println!("Slack message sent");
     }
 }
