@@ -9,5 +9,5 @@ edition = "2018"
 [dependencies]
 discord = { git = "https://github.com/SpaceManiac/discord-rs" } #TODO no voice
 futures = "0.3"
-slack_api = "0.23" #TODO no voice
+slack = "0.25"
 tokio = { version = "0.2", features = ["full"] } #TODO actual features

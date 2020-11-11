@@ -1,42 +1,51 @@
-use slack_api as slack;
-use tokio::sync::mpsc;
+use futures::join;
+use tokio::{
+    sync::mpsc,
+    task::{
+        spawn,
+        spawn_blocking,
+    },
+};
+
+struct Handler;
+
+impl slack::EventHandler for Handler {
+    fn on_event(&mut self, _cli: &slack::RtmClient, event: slack::Event) {
+        println!("on_event: {:#?}", event);
+    }
+
+    fn on_close(&mut self, _cli: &slack::RtmClient) {
+        println!("on_close")
+    }
+
+    fn on_connect(&mut self, _cli: &slack::RtmClient) {
+        println!("on_connect");
+    }
+}
 
 pub async fn handle(
     token: Option<String>,
-    sender: mpsc::UnboundedSender<String>,
+    _sender: mpsc::UnboundedSender<String>,
     mut receiver: mpsc::UnboundedReceiver<String>,
 ) {
     println!("Setting up Slack");
 
     let token = std::env::var("SLACK_API_TOKEN").unwrap_or(token.unwrap());
-    let client = slack::default_client().unwrap();
 
-    let request = slack::rtm::StartRequest::default();
-    let response = slack::rtm::start(&client,
-                                     &token,
-                                     &request).await;
-
-    if let Ok(response) = response {
-        if let Some(channels) = response.channels {
-            let channel_names = channels
-                .iter()
-                .filter_map(|c| c.name.as_ref())
-                .collect::<Vec<_>>();
-            sender.send(format!("Got channels {:?}", channel_names).to_string()).unwrap();
-        }
-
-        if let Some(users) = response.users {
-            let user_names = users
-                .iter()
-                .filter_map(|u| u.name.as_ref())
-                .collect::<Vec<_>>();
-            sender.send(format!("Got users {:?}", user_names).to_string()).unwrap();
-        }
-    } else { //TODO NotAuth etc
-        println!("{:?}", response)
-    }
-
-    while let Some(s) = receiver.recv().await {
-        println!("Slack received '{}' from discord", s);
-    }
+    join!(
+        spawn_blocking(move || {
+            let mut handler = Handler;
+            match slack::RtmClient::login_and_run(&token, &mut handler) {
+                Ok(_) => {}
+                Err(e) => {
+                    println!("Error: {}", e)
+                }
+            }
+        }),
+        spawn(async move {
+            while let Some(s) = receiver.recv().await {
+                println!("Slack received '{}' from discord", s);
+            }
+        })
+    );
 }
