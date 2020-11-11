@@ -8,28 +8,30 @@ use tokio::task::spawn_blocking;
 
 #[tokio::main]
 async fn main() {
+    let slack_token: Option<String> = None;
+    let discord_token: Option<String> = None;
+
     println!("Hello, world!");
 
     join!(
         spawn_blocking(move || {
-            discord_loop();
+            discord_loop(discord_token);
         }),
-        slack_loop(),
+        slack_loop(slack_token),
     );
 }
 
-async fn slack_loop() {
+async fn slack_loop(token: Option<String>) {
     println!("Setting up Slack");
 
-    let slack_token = std::env::var("SLACK_API_TOKEN")
-        .unwrap_or(""
-                   .to_string());
-    let slack_client = slack::default_client().unwrap();
+    let token = std::env::var("SLACK_API_TOKEN")
+        .unwrap_or(token.unwrap());
+    let client = slack::default_client().unwrap();
 
-    let slack_request = slack::rtm::StartRequest::default();
-    let response = slack::rtm::start(&slack_client,
-                                     &slack_token,
-                                     &slack_request).await;
+    let request = slack::rtm::StartRequest::default();
+    let response = slack::rtm::start(&client,
+                                     &token,
+                                     &request).await;
 
     if let Ok(response) = response {
         if let Some(channels) = response.channels {
@@ -52,16 +54,15 @@ async fn slack_loop() {
     }
 }
 
-fn discord_loop() {
+fn discord_loop(token: Option<String>) {
     println!("Setting up Discord");
 
-    let discord_token = std::env::var("DISCORD_API_TOKEN")
-        .unwrap_or(""
-                   .to_string());
-    let discord = Discord::from_bot_token(&discord_token);
+    let token = std::env::var("DISCORD_API_TOKEN")
+        .unwrap_or(token.unwrap());
+    let client = Discord::from_bot_token(&token);
 
-    if let Ok(discord) = discord {
-        let (mut connection, _) = discord.connect() .expect("discord connect failed");
+    if let Ok(client) = client {
+        let (mut connection, _) = client.connect().expect("discord connect failed");
         println!("Discord ready");
         loop {
             match connection.recv_event() {
