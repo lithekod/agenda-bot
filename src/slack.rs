@@ -59,7 +59,7 @@ impl slack::EventHandler for Handler {
 pub async fn handle(
     token: Option<String>,
     sender: mpsc::UnboundedSender<String>,
-    mut receiver: mpsc::UnboundedReceiver<String>,
+    receiver: mpsc::UnboundedReceiver<String>,
 ) {
     println!("Setting up Slack");
 
@@ -80,16 +80,21 @@ pub async fn handle(
                 }
             }
         }),
-        spawn(async move {
-            while let Some(s) = receiver.recv().await {
-                println!("Slack received '{}'", s);
-                //TODO Sending messages is very slow sometimes. Have seen delays
-                // from 5 up to 20(!) seconds.
-                slack_sender.send_typing("CPBAA5FA7").unwrap();
-                println!("Typing");
-                slack_sender.send_message("CPBAA5FA7", &s).unwrap();
-                println!("Sent");
-            }
-        })
+        spawn(receive_from_discord(receiver, slack_sender))
     );
+}
+
+async fn receive_from_discord(
+    mut receiver: mpsc::UnboundedReceiver<String>,
+    sender: slack::Sender,
+) {
+    while let Some(s) = receiver.recv().await {
+        println!("Slack received '{}'", s);
+        //TODO Sending messages is very slow sometimes. Have seen delays
+        // from 5 up to 20(!) seconds.
+        sender.send_typing("CPBAA5FA7").unwrap();
+        println!("Typing");
+        sender.send_message("CPBAA5FA7", &s).unwrap();
+        println!("Sent");
+    }
 }
