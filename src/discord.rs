@@ -26,6 +26,7 @@ pub async fn handle(
 
     if let Ok(client) = client {
         let (mut connection, _) = client.connect().expect("discord connect failed"); //TODO
+        let our_id = client.get_current_user().unwrap().id;
         println!("Discord ready");
 
         let (_, _) = join!( //TODO?
@@ -33,11 +34,13 @@ pub async fn handle(
                 loop {
                     match connection.recv_event() {
                         Ok(Event::MessageCreate(message)) => {
-                            sender.send(format!("{:?}:{} says: {}",
-                                                message.channel_id,
-                                                message.author.name,
-                                                message.content))
-                                  .unwrap();
+                            if message.author.id != our_id {
+                                sender.send(format!("{:?}:{} says: {}",
+                                                    message.channel_id,
+                                                    message.author.name,
+                                                    message.content))
+                                    .unwrap();
+                            }
                         }
                         Ok(_) => {}
                         Err(discord::Error::Closed(code, body)) => {
