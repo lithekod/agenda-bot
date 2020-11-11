@@ -4,6 +4,7 @@ use discord::{
         Event,
     },
     Discord,
+    Error,
 };
 use futures::join;
 use tokio::{
@@ -43,19 +44,19 @@ pub async fn handle(
                             }
                         }
                         Ok(_) => {}
-                        Err(discord::Error::Closed(code, body)) => {
+                        Err(Error::Closed(code, body)) => {
                             println!("Discord closed with code {:?}: {}", code, body);
                             break;
                         }
-                        Err(err) => {
-                            println!("Error: {:?}", err);
+                        Err(e) => {
+                            println!("Error: {:?}", e);
                         }
                     }
                 }
             }),
             spawn(async move {
                 while let Some(s) = receiver.recv().await {
-                    println!("Discord received '{}' from slack", s);
+                    println!("Discord received '{}'", s);
                     client.send_message(ChannelId(697057150106599488), //TODO
                                         &s,
                                         "",

@@ -76,7 +76,7 @@ pub async fn handle(
         }),
         spawn(async move {
             while let Some(s) = receiver.recv().await {
-                println!("Slack received '{}' from discord", s);
+                println!("Slack received '{}'", s);
             }
         })
     );
