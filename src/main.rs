@@ -2,11 +2,23 @@ use discord::{
     model::Event,
     Discord,
 };
+use futures::join;
 use slack_api as slack;
+use tokio::task::spawn_blocking;
 
 #[tokio::main]
 async fn main() {
     println!("Hello, world!");
+
+    join!(
+        spawn_blocking(move || {
+            discord_loop();
+        }),
+        slack_loop(),
+    );
+}
+
+async fn slack_loop() {
     println!("Setting up Slack");
 
     let slack_token = std::env::var("SLACK_API_TOKEN")
@@ -38,7 +50,9 @@ async fn main() {
     } else {
         println!("{:?}", response)
     }
+}
 
+fn discord_loop() {
     println!("Setting up Discord");
 
     let discord_token = std::env::var("DISCORD_API_TOKEN")
