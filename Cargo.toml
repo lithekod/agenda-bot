@@ -7,9 +7,18 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-discord = { git = "https://github.com/SpaceManiac/discord-rs" } #TODO no voice
 futures = "0.3"
-serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 slack = "0.25"
-tokio = { version = "0.2", features = ["full"] } #TODO actual features
+
+[dependencies.discord]
+git = "https://github.com/SpaceManiac/discord-rs"
+default-features = false
+
+[dependencies.serde]
+version = "1.0"
+features = [ "derive" ]
+
+[dependencies.tokio]
+version = "0.2"
+features = [ "macros", "sync" ]

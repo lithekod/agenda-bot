@@ -15,14 +15,14 @@ FEATURES:
 * mention the bot to do stuff?
 
 ISSUES:
-* build without voice support
-* build only needed tokio features
 * sending to slack is very slow
 
 DONE:
 * login
 * send messages both ways
 * readme
+* build without voice support
+* build only needed tokio features
 
 LATER: (rough ordering and scope)
 * send reminders

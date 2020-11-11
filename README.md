@@ -5,23 +5,21 @@ reminders.
 
 The binary itself depends on:
 
-- Opus (see TODO)
 - OpenSSL
 
 ... as well as the usual suspects:
 
 ```
 $ ldd target/debug/agenda-bot
-        linux-vdso.so.1 (0x00007ffcc14e5000)
-        libopus.so.0 => /usr/lib/libopus.so.0 (0x00007fe327d4b000)
-        libssl.so.1.1 => /usr/lib/libssl.so.1.1 (0x00007fe327cbb000)
-        libcrypto.so.1.1 => /usr/lib/libcrypto.so.1.1 (0x00007fe3279dd000)
-        libdl.so.2 => /usr/lib/libdl.so.2 (0x00007fe3279d7000)
-        libpthread.so.0 => /usr/lib/libpthread.so.0 (0x00007fe3279b5000)
-        libgcc_s.so.1 => /usr/lib/libgcc_s.so.1 (0x00007fe32799b000)
-        libc.so.6 => /usr/lib/libc.so.6 (0x00007fe3277d0000)
-        /lib64/ld-linux-x86-64.so.2 => /usr/lib64/ld-linux-x86-64.so.2 (0x00007fe3290dd000)
-        libm.so.6 => /usr/lib/libm.so.6 (0x00007fe32768a000)
+        linux-vdso.so.1 (0x00007ffc353fd000)
+        libssl.so.1.1 => /usr/lib/libssl.so.1.1 (0x00007f58987d2000)
+        libcrypto.so.1.1 => /usr/lib/libcrypto.so.1.1 (0x00007f58984f4000)
+        libdl.so.2 => /usr/lib/libdl.so.2 (0x00007f58984ee000)
+        libpthread.so.0 => /usr/lib/libpthread.so.0 (0x00007f58984cc000)
+        libgcc_s.so.1 => /usr/lib/libgcc_s.so.1 (0x00007f58984b2000)
+        libc.so.6 => /usr/lib/libc.so.6 (0x00007f58982e9000)
+        /lib64/ld-linux-x86-64.so.2 => /usr/lib64/ld-linux-x86-64.so.2 (0x00007f5899b1b000)
+        libm.so.6 => /usr/lib/libm.so.6 (0x00007f58981a1000)
 ```
 
 It has only been tested on Linux.
