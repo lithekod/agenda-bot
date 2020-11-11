@@ -4,12 +4,11 @@ use tokio::sync::mpsc;
 pub async fn handle(
     token: Option<String>,
     sender: mpsc::UnboundedSender<String>,
-    _receiver: mpsc::UnboundedReceiver<String>,
+    mut receiver: mpsc::UnboundedReceiver<String>,
 ) {
     println!("Setting up Slack");
 
-    let token = std::env::var("SLACK_API_TOKEN")
-        .unwrap_or(token.unwrap());
+    let token = std::env::var("SLACK_API_TOKEN").unwrap_or(token.unwrap());
     let client = slack::default_client().unwrap();
 
     let request = slack::rtm::StartRequest::default();
@@ -35,5 +34,9 @@ pub async fn handle(
         }
     } else { //TODO NotAuth etc
         println!("{:?}", response)
+    }
+
+    while let Some(s) = receiver.recv().await {
+        println!("Slack received '{}' from discord", s);
     }
 }

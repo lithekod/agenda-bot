@@ -13,25 +13,24 @@ use tokio::{
 
 pub async fn handle(
     token: Option<String>,
-    _sender: mpsc::UnboundedSender<String>,
+    sender: mpsc::UnboundedSender<String>,
     mut receiver: mpsc::UnboundedReceiver<String>,
 ) {
     println!("Setting up Discord");
 
-    let token = std::env::var("DISCORD_API_TOKEN")
-        .unwrap_or(token.unwrap());
+    let token = std::env::var("DISCORD_API_TOKEN").unwrap_or(token.unwrap());
     let client = Discord::from_bot_token(&token);
 
     if let Ok(client) = client {
         let (mut connection, _) = client.connect().expect("discord connect failed"); //TODO
         println!("Discord ready");
 
-        let (_, _) = join!( //TODO
+        let (_, _) = join!( //TODO?
             spawn_blocking(move || {
                 loop {
                     match connection.recv_event() {
                         Ok(Event::MessageCreate(message)) => {
-                            println!("{} says: {}", message.author.name, message.content);
+                            sender.send(format!("{} says: {}", message.author.name, message.content)).unwrap();
                         }
                         Ok(_) => {}
                         Err(discord::Error::Closed(code, body)) => {
