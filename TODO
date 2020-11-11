@@ -1,21 +1,18 @@
 META:
-* readme
-  requirements
-  install instructions
-  usage
-* release with binary
+* tag with binary on github
+* aur??
 
 FEATURES:
-* specify channels to send in and store them
+* store the agenda in a (configurable) file
+* specify channels to read from and send in
+* specify trusted users (i.e. board members)
 * basic commands
   add
   print
   remove
   clear
   help
-* mention the bot to do stuff
-* store the agenda in a configurable file
-* print the agenda
+* mention the bot to do stuff?
 
 ISSUES:
 * build without voice support
@@ -25,6 +22,7 @@ ISSUES:
 DONE:
 * login
 * send messages both ways
+* readme
 
 LATER: (rough ordering and scope)
 * send reminders
