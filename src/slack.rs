@@ -1,4 +1,8 @@
 use futures::join;
+use slack::{
+    Event,
+    Message,
+};
 use tokio::{
     sync::mpsc,
     task::{
@@ -7,11 +11,39 @@ use tokio::{
     },
 };
 
-struct Handler;
+struct Handler {
+    sender: mpsc::UnboundedSender<String>,
+}
+
+impl Handler {
+    fn new(sender: mpsc::UnboundedSender<String>) -> Self {
+        Self {
+            sender
+        }
+    }
+
+    fn sender(&self) -> &mpsc::UnboundedSender<String> {
+        &self.sender
+    }
+}
 
 impl slack::EventHandler for Handler {
     fn on_event(&mut self, _cli: &slack::RtmClient, event: slack::Event) {
         println!("on_event: {:#?}", event);
+        match event {
+            Event::Message(msg) => {
+                match *msg {
+                    Message::Standard(msg) => {
+                        self.sender().send(format!("{} says: {}",
+                                                   msg.user.unwrap_or("??".to_string()),
+                                                   msg.text.unwrap_or("??".to_string()))
+                                           .to_string()).unwrap();
+                    }
+                    _ => {}
+                }
+            }
+            _ => {}
+        }
     }
 
     fn on_close(&mut self, _cli: &slack::RtmClient) {
@@ -25,7 +57,7 @@ impl slack::EventHandler for Handler {
 
 pub async fn handle(
     token: Option<String>,
-    _sender: mpsc::UnboundedSender<String>,
+    sender: mpsc::UnboundedSender<String>,
     mut receiver: mpsc::UnboundedReceiver<String>,
 ) {
     println!("Setting up Slack");
@@ -34,7 +66,7 @@ pub async fn handle(
 
     join!(
         spawn_blocking(move || {
-            let mut handler = Handler;
+            let mut handler = Handler::new(sender);
             match slack::RtmClient::login_and_run(&token, &mut handler) {
                 Ok(_) => {}
                 Err(e) => {
