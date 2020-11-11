@@ -3,11 +3,7 @@ reminders.
 
 ## Requirements
 
-The binary itself depends on:
-
-- OpenSSL
-
-... as well as the usual suspects:
+The binary itself depends on OpenSSL, as well as the usual suspects (glibc):
 
 ```
 $ ldd target/debug/agenda-bot
@@ -22,9 +18,8 @@ $ ldd target/debug/agenda-bot
         libm.so.6 => /usr/lib/libm.so.6 (0x00007f58981a1000)
 ```
 
-It has only been tested on Linux.
-
-Rust stable is needed to compile.
+It has only been tested on Linux. macOS should work. Rust stable is needed to
+compile.
 
 ## Building
 
@@ -33,15 +28,15 @@ In order to actually use the bot you need:
 - Somewhere for it to live
 - A Slack "classic" bot user
 - A Discord bot user
-- Permission to add bots to your Slack workspace and Discord server
+- Necessary permissions to add bots to your Slack workspace and Discord server
 
 Then, either pass the bot tokens as enviornment variables (`DISCORD_API_TOKEN` and
 `SLACK_API_TOKEN`), or hard-code them into the binary (**NOT RECOMMENDED**
 except for development purposes) by editing `src/discord.rs` and `src/slack.rs`.
 
 Which channels the messages are sent to is currently specified via either
-hard-coded constant values or environment variables (`DISCORD_CHANNEL` and
-`SLACK_CHANNEL`).
+hard-coded constant values (again, not recommended, but at least not a security
+issue here) or environment variables (`DISCORD_CHANNEL` and `SLACK_CHANNEL`).
 
 The following shows all necessary steps needed to build and run the bot:
 
