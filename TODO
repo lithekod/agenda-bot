@@ -1,0 +1,40 @@
+META:
+* readme
+  requirements
+  install instructions
+  usage
+* release with binary
+
+FEATURES:
+* specify channels to send in and store them
+* basic commands
+  add
+  print
+  remove
+  clear
+  help
+* mention the bot to do stuff
+* store the agenda in a configurable file
+* print the agenda
+
+ISSUES:
+* build without voice support
+* build only needed tokio features
+* sending to slack is very slow
+
+DONE:
+* login
+* send messages both ways
+
+LATER: (rough ordering and scope)
+* send reminders
+  24h and 1h (?)
+* more commands
+  next
+  plan
+  skip
+* allowed users
+* customize meeting times
+  store dates in a file? commands?
+* customize reminders
+* gcal
