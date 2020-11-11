@@ -1,5 +1,8 @@
 use discord::{
-    model::Event,
+    model::{
+        ChannelId,
+        Event,
+    },
     Discord,
 };
 use futures::join;
@@ -30,7 +33,11 @@ pub async fn handle(
                 loop {
                     match connection.recv_event() {
                         Ok(Event::MessageCreate(message)) => {
-                            sender.send(format!("{} says: {}", message.author.name, message.content)).unwrap();
+                            sender.send(format!("{:?}:{} says: {}",
+                                                message.channel_id,
+                                                message.author.name,
+                                                message.content))
+                                  .unwrap();
                         }
                         Ok(_) => {}
                         Err(discord::Error::Closed(code, body)) => {
@@ -46,6 +53,11 @@ pub async fn handle(
             spawn(async move {
                 while let Some(s) = receiver.recv().await {
                     println!("Discord received '{}' from slack", s);
+                    client.send_message(ChannelId(697057150106599488), //TODO
+                                        &s,
+                                        "",
+                                        false
+                    );
                 }
             })
         );
