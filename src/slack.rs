@@ -34,7 +34,8 @@ impl slack::EventHandler for Handler {
             Event::Message(msg) => {
                 match *msg {
                     Message::Standard(msg) => {
-                        self.sender().send(format!("{} says: {}",
+                        self.sender().send(format!("{}:{} says: {}",
+                                                   msg.channel.unwrap_or("??".to_string()),
                                                    msg.user.unwrap_or("??".to_string()),
                                                    msg.text.unwrap_or("??".to_string()))
                                            .to_string()).unwrap();
@@ -63,11 +64,16 @@ pub async fn handle(
     println!("Setting up Slack");
 
     let token = std::env::var("SLACK_API_TOKEN").unwrap_or(token.unwrap());
+    let client = spawn_blocking(move || {
+        slack::RtmClient::login(&token).unwrap()
+    }).await.unwrap();
+
+    let slack_sender = client.sender().clone();
 
     join!(
         spawn_blocking(move || {
             let mut handler = Handler::new(sender);
-            match slack::RtmClient::login_and_run(&token, &mut handler) {
+            match client.run(&mut handler) {
                 Ok(_) => {}
                 Err(e) => {
                     println!("Error: {}", e)
@@ -77,6 +83,12 @@ pub async fn handle(
         spawn(async move {
             while let Some(s) = receiver.recv().await {
                 println!("Slack received '{}'", s);
+                //TODO Sending messages is very slow sometimes. Have seen delays
+                // from 5 up to 20(!) seconds.
+                slack_sender.send_typing("CPBAA5FA7").unwrap();
+                println!("Typing");
+                slack_sender.send_message("CPBAA5FA7", &s).unwrap();
+                println!("Sent");
             }
         })
     );
