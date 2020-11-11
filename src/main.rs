@@ -1,5 +1,8 @@
+mod agenda;
 mod discord;
 mod slack;
+
+use crate::agenda::AgendaPoint;
 
 use futures::join;
 use tokio::sync::mpsc;
@@ -11,8 +14,8 @@ async fn main() {
 
     println!("Hello, world!");
 
-    let (from_discord, to_slack) = mpsc::unbounded_channel::<String>();
-    let (from_slack, to_discord) = mpsc::unbounded_channel::<String>();
+    let (from_discord, to_slack) = mpsc::unbounded_channel::<AgendaPoint>();
+    let (from_slack, to_discord) = mpsc::unbounded_channel::<AgendaPoint>();
 
     join!(
         discord::handle(discord_token, from_discord, to_discord),

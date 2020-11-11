@@ -1,3 +1,5 @@
+use crate::agenda::AgendaPoint;
+
 use futures::join;
 use slack::{
     Event,
@@ -12,17 +14,17 @@ use tokio::{
 };
 
 struct Handler {
-    sender: mpsc::UnboundedSender<String>,
+    sender: mpsc::UnboundedSender<AgendaPoint>,
 }
 
 impl Handler {
-    fn new(sender: mpsc::UnboundedSender<String>) -> Self {
+    fn new(sender: mpsc::UnboundedSender<AgendaPoint>) -> Self {
         Self {
             sender
         }
     }
 
-    fn sender(&self) -> &mpsc::UnboundedSender<String> {
+    fn sender(&self) -> &mpsc::UnboundedSender<AgendaPoint> {
         &self.sender
     }
 }
@@ -34,11 +36,10 @@ impl slack::EventHandler for Handler {
             Event::Message(msg) => {
                 match *msg {
                     Message::Standard(msg) => {
-                        self.sender().send(format!("{}:{} says: {}",
-                                                   msg.channel.unwrap_or("??".to_string()),
-                                                   msg.user.unwrap_or("??".to_string()),
-                                                   msg.text.unwrap_or("??".to_string()))
-                                           .to_string()).unwrap();
+                        self.sender().send(AgendaPoint{
+                            title: msg.text.unwrap_or("??".to_string()),
+                            adder: msg.user.unwrap_or("??".to_string()),
+                        });
                     }
                     _ => {}
                 }
@@ -58,8 +59,8 @@ impl slack::EventHandler for Handler {
 
 pub async fn handle(
     token: Option<String>,
-    sender: mpsc::UnboundedSender<String>,
-    receiver: mpsc::UnboundedReceiver<String>,
+    sender: mpsc::UnboundedSender<AgendaPoint>,
+    receiver: mpsc::UnboundedReceiver<AgendaPoint>,
 ) {
     println!("Setting up Slack");
 
@@ -85,16 +86,16 @@ pub async fn handle(
 }
 
 async fn receive_from_discord(
-    mut receiver: mpsc::UnboundedReceiver<String>,
+    mut receiver: mpsc::UnboundedReceiver<AgendaPoint>,
     sender: slack::Sender,
 ) {
-    while let Some(s) = receiver.recv().await {
-        println!("Slack received '{}'", s);
+    while let Some(point) = receiver.recv().await {
+        println!("Slack received '{}'", point);
         //TODO Sending messages is very slow sometimes. Have seen delays
         // from 5 up to 20(!) seconds.
         sender.send_typing("CPBAA5FA7").unwrap();
         println!("Typing");
-        sender.send_message("CPBAA5FA7", &s).unwrap();
+        sender.send_message("CPBAA5FA7", &point.to_add_message()).unwrap();
         println!("Sent");
     }
 }

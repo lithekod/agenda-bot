@@ -1,3 +1,5 @@
+use crate::agenda::AgendaPoint;
+
 use discord::{
     model::{
         ChannelId,
@@ -17,8 +19,8 @@ use tokio::{
 
 pub async fn handle(
     token: Option<String>,
-    sender: mpsc::UnboundedSender<String>,
-    receiver: mpsc::UnboundedReceiver<String>,
+    sender: mpsc::UnboundedSender<AgendaPoint>,
+    receiver: mpsc::UnboundedReceiver<AgendaPoint>,
 ) {
     println!("Setting up Discord");
 
@@ -40,17 +42,16 @@ pub async fn handle(
 fn receive_events(
     our_id: discord::model::UserId,
     mut connection: discord::Connection,
-    sender: mpsc::UnboundedSender<String>
+    sender: mpsc::UnboundedSender<AgendaPoint>
 ) {
     loop {
         match connection.recv_event() {
             Ok(Event::MessageCreate(message)) => {
                 if message.author.id != our_id {
-                    sender.send(format!("{:?}:{} says: {}",
-                                        message.channel_id,
-                                        message.author.name,
-                                        message.content))
-                        .unwrap();
+                    sender.send(AgendaPoint{
+                        title: message.content,
+                        adder: message.author.name,
+                    }).unwrap();
                 }
             }
             Ok(_) => {}
@@ -66,13 +67,13 @@ fn receive_events(
 }
 
 async fn receive_from_slack(
-    mut receiver: mpsc::UnboundedReceiver<String>,
+    mut receiver: mpsc::UnboundedReceiver<AgendaPoint>,
     client: discord::Discord,
 ) {
-    while let Some(s) = receiver.recv().await {
-        println!("Discord received '{}'", s);
+    while let Some(point) = receiver.recv().await {
+        println!("Discord received '{}'", point);
         client.send_message(ChannelId(697057150106599488), //TODO
-                            &s,
+                            &point.to_add_message(),
                             "",
                             false
         );
