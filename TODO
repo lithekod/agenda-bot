@@ -3,19 +3,19 @@ META:
 * aur??
 
 FEATURES:
-* store the agenda in a (configurable) file
 * specify channels to read from and send in
+--- basic usage cutoff ---
 * specify trusted users (i.e. board members)
-* basic commands
-  add
-  print
-  remove
-  clear
-  help
 * mention the bot to do stuff?
+* react to messages with +1 when they are read
+* output formatting (!help mainly)
+* configurable command prefix
 
 ISSUES:
 * sending to slack is very slow
+* too many unwraps
+* use correct form of string
+* panics on !agenda with empty agenda
 
 DONE:
 * login
@@ -23,8 +23,14 @@ DONE:
 * readme
 * build without voice support
 * build only needed tokio features
+* store the agenda in a (configurable) file
+* basic commands
+  add
+  print
+  clear
+  help
 
-LATER: (rough ordering and scope)
+LATER: (ordering and scope not actual)
 * send reminders
   24h and 1h (?)
 * more commands
