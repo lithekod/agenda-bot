@@ -2,8 +2,10 @@ mod agenda;
 mod discord;
 mod slack;
 
-use crate::agenda::AgendaPoint;
-
+use crate::agenda::{
+    Agenda,
+    AgendaPoint,
+};
 use futures::join;
 use tokio::sync::mpsc;
 

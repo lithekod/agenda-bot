@@ -1,4 +1,7 @@
-use crate::agenda::AgendaPoint;
+use crate::agenda::{
+    parse_message,
+    AgendaPoint
+};
 
 use futures::join;
 use slack::{
@@ -18,12 +21,20 @@ const CHANNEL: Option<&str> = None;
 
 struct Handler {
     sender: mpsc::UnboundedSender<AgendaPoint>,
+    slack_sender: slack::Sender,
+    slack_channel: String,
 }
 
 impl Handler {
-    fn new(sender: mpsc::UnboundedSender<AgendaPoint>) -> Self {
+    fn new(
+        sender: mpsc::UnboundedSender<AgendaPoint>,
+        slack_sender: slack::Sender,
+        slack_channel: String
+    ) -> Self {
         Self {
-            sender
+            sender,
+            slack_sender,
+            slack_channel,
         }
     }
 
@@ -39,10 +50,12 @@ impl slack::EventHandler for Handler {
             Event::Message(msg) => {
                 match *msg {
                     Message::Standard(msg) => {
-                        self.sender().send(AgendaPoint{
-                            title: msg.text.unwrap_or("??".to_string()),
-                            adder: msg.user.unwrap_or("??".to_string()),
-                        }).unwrap();
+                        if let Ok(Some(s)) = parse_message(
+                            &msg.text.unwrap_or("".to_string()),
+                            &msg.user.unwrap_or("??".to_string()),
+                        ) {
+                            self.slack_sender.send_message(self.slack_channel.as_str(), &s).unwrap();
+                        }
                     }
                     _ => {}
                 }
@@ -67,15 +80,16 @@ pub async fn handle(
     println!("Setting up Slack");
 
     let token = std::env::var("SLACK_API_TOKEN").unwrap_or_else(|_| TOKEN.expect("Missing slack token").to_string());
+    let token_clone = token.clone();
     let client = spawn_blocking(move || {
         slack::RtmClient::login(&token).unwrap()
     }).await.unwrap();
 
+    let mut handler = Handler::new(sender, client.sender().clone(), token_clone);
     let slack_sender = client.sender().clone();
 
     let (_, _) = join!(
         spawn_blocking(move || {
-            let mut handler = Handler::new(sender);
             match client.run(&mut handler) {
                 Ok(_) => {}
                 Err(e) => {
