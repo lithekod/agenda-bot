@@ -43,7 +43,6 @@ impl Handler {
 
 impl slack::EventHandler for Handler {
     fn on_event(&mut self, cli: &slack::RtmClient, event: slack::Event) {
-        println!("on_event: {:#?}", event);
         match event {
             Event::Hello => {
                 if self.print_channels {
@@ -57,7 +56,7 @@ impl slack::EventHandler for Handler {
                                       .iter()
                                       .map(|channel| format!("{}: {}",
                                                              channel.name.as_ref().unwrap_or(&"??".to_string()), //TODO &"".to_string() ?
-                                                             channel.id.as_ref().unwrap_or(&"??".to_string())))
+                                                             channel.id.as_ref().unwrap_or(&"??".to_string())))  //TODO
                                       .collect::<Vec<_>>())
                              }));
                 }
@@ -66,29 +65,27 @@ impl slack::EventHandler for Handler {
                 if let Some(channel) = &self.slack_channel {
                     match *msg {
                         Message::Standard(msg) => {
-                            if let Ok(Some(s)) = parse_message(
-                                &msg.text.unwrap_or("".to_string()),
-                                &msg.user.unwrap_or("??".to_string()),
-                                &self.sender,
-                            ) {
-                                self.slack_sender.send_message(channel.as_str(), &s).unwrap();
+                            if msg.channel.is_some() && *channel == msg.channel.unwrap() { //TODO
+                                if let Ok(Some(s)) = parse_message(
+                                    &msg.text.unwrap_or("".to_string()),
+                                    &msg.user.unwrap_or("??".to_string()),
+                                    &self.sender,
+                                ) {
+                                    self.slack_sender.send_message(channel.as_str(), &s).unwrap();
+                                }
                             }
                         }
-                        _ => {}
+                        _ => {} // message type
                     }
                 }
             }
-            _ => {}
+            _ => {} // event type
         }
     }
 
-    fn on_close(&mut self, _cli: &slack::RtmClient) {
-        println!("on_close")
-    }
+    fn on_close(&mut self, _cli: &slack::RtmClient) {}
 
-    fn on_connect(&mut self, _cli: &slack::RtmClient) {
-        println!("on_connect");
-    }
+    fn on_connect(&mut self, _cli: &slack::RtmClient) {}
 }
 
 pub async fn handle(

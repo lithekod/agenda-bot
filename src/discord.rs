@@ -64,31 +64,35 @@ fn receive_events(
     loop {
         match connection.recv_event() {
             Ok(Event::ServerCreate(server)) => {
-                if let PossibleServer::Online(server) = server {
-                    println!("Discord channels in {}: {:#?}",
-                             server.name,
-                             server
-                             .channels
-                             .iter()
-                             .map(|channel| format!("{}: {} ({:?})",
-                                                    channel.name,
-                                                    channel.id,
-                                                    channel.kind))
-                             .collect::<Vec<_>>());
+                if channel.is_none() {
+                    if let PossibleServer::Online(server) = server {
+                        println!("Discord channels in {}: {:#?}",
+                                 server.name,
+                                 server
+                                 .channels
+                                 .iter()
+                                 .map(|channel| format!("{}: {} ({:?})",
+                                                        channel.name,
+                                                        channel.id,
+                                                        channel.kind))
+                                 .collect::<Vec<_>>());
+                    }
                 }
             }
 
             Ok(Event::MessageCreate(message)) => {
                 if let Some(channel) = channel {
-                    if let Ok(Some(s)) = parse_message(
-                        &message.content,
-                        &message.author.name,
-                        &sender,
-                    ) {
-                        client.lock().unwrap().send_message(channel,
-                                                            &s,
-                                                            "",
-                                                            false).unwrap();
+                    if channel == message.channel_id {
+                        if let Ok(Some(s)) = parse_message(
+                            &message.content,
+                            &message.author.name,
+                            &sender,
+                        ) {
+                            client.lock().unwrap().send_message(channel,
+                                                                &s,
+                                                                "",
+                                                                false).unwrap();
+                        }
                     }
                 }
             }
