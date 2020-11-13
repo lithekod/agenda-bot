@@ -7,6 +7,7 @@ use discord::{
     model::{
         ChannelId,
         Event,
+        PossibleServer,
     },
     Discord,
     Error,
@@ -34,49 +35,62 @@ pub async fn handle(
     println!("Setting up Discord");
 
     let token = std::env::var("DISCORD_API_TOKEN").unwrap_or_else(|_| TOKEN.expect("Missing Discord token").to_string());
-    let channel_id = ChannelId(
-        match std::env::var("DISCORD_CHANNEL") {
-            Ok(var) => var.parse().unwrap(),
-            Err(_) => CHANNEL.expect("Missing Discord channel"),
-        });
-
     let client = Discord::from_bot_token(&token);
 
     if let Ok(client) = client {
         let (connection, _) = client.connect().expect("Discord connect failed"); //TODO
         let our_id = client.get_current_user().unwrap().id;
         let client = Arc::new(Mutex::new(client));
-        println!("Discord ready");
+
+        let channel = match std::env::var("DISCORD_CHANNEL") {
+            Ok(channel) => Some(ChannelId(channel.parse::<u64>().unwrap())),
+            Err(_) => CHANNEL,
+        };
 
         let (_, _) = join!( //TODO?
-            spawn(receive_from_slack(receiver, Arc::clone(&client), channel_id)),
-            spawn_blocking(move || receive_events(our_id, connection, sender, client, channel_id)),
+            spawn(receive_from_slack(receiver, Arc::clone(&client), channel)),
+            spawn_blocking(move || receive_events(our_id, connection, sender, client, channel)),
         );
     }
 }
 
 fn receive_events(
-    our_id: discord::model::UserId,
+    _our_id: discord::model::UserId,
     mut connection: discord::Connection,
     sender: mpsc::UnboundedSender<AgendaPoint>,
     client: Arc<Mutex<discord::Discord>>,
-    channel_id: ChannelId,
+    channel: Option<ChannelId>,
 ) {
     loop {
         match connection.recv_event() {
-            Ok(Event::MessageCreate(message)) => {
-                if let Ok(Some(s)) = parse_message(&message.content, &message.author.name) {
-                    client.lock().unwrap().send_message(channel_id,
-                                                        &s,
-                                                        "",
-                                                        false).unwrap();
+            Ok(Event::ServerCreate(server)) => {
+                if let PossibleServer::Online(server) = server {
+                    println!("Discord channels in {}: {:#?}",
+                             server.name,
+                             server
+                             .channels
+                             .iter()
+                             .map(|channel| format!("{}: {} ({:?})",
+                                                    channel.name,
+                                                    channel.id,
+                                                    channel.kind))
+                             .collect::<Vec<_>>());
                 }
-                //if message.author.id != our_id {
-                //    sender.send(AgendaPoint{
-                //        title: message.content,
-                //        adder: message.author.name,
-                //    }).unwrap();
-                //}
+            }
+
+            Ok(Event::MessageCreate(message)) => {
+                if let Some(channel) = channel {
+                    if let Ok(Some(s)) = parse_message(
+                        &message.content,
+                        &message.author.name,
+                        &sender,
+                    ) {
+                        client.lock().unwrap().send_message(channel,
+                                                            &s,
+                                                            "",
+                                                            false).unwrap();
+                    }
+                }
             }
             Ok(_) => {}
             Err(Error::Closed(code, body)) => {
@@ -93,14 +107,16 @@ fn receive_events(
 async fn receive_from_slack(
     mut receiver: mpsc::UnboundedReceiver<AgendaPoint>,
     client: Arc<Mutex<discord::Discord>>,
-    channel_id: ChannelId
+    channel: Option<ChannelId>
 ) {
-    while let Some(point) = receiver.recv().await {
-        println!("Discord received '{}'", point);
-        client.lock().unwrap().send_message(channel_id,
-                                            &point.to_add_message(),
-                                            "",
-                                            false).unwrap();
+    if let Some(channel) = channel {
+        while let Some(point) = receiver.recv().await {
+            println!("Discord received '{}'", point);
+            client.lock().unwrap().send_message(channel,
+                                                &point.to_add_message(),
+                                                "",
+                                                false).unwrap();
+        }
     }
 
 }

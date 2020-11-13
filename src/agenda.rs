@@ -6,8 +6,9 @@ use std::{
     fmt,
     fs,
 };
+use tokio::sync::mpsc;
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct AgendaPoint {
     title: String,
     adder: String,
@@ -42,13 +43,19 @@ pub enum ParseError {
     NoSuchCommand,
 }
 
-pub fn parse_message(message: &str, sender: &str) -> Result<Option<String>, ParseError> {
+pub fn parse_message(
+    message: &str,
+    sender: &str,
+    point_sender: &mpsc::UnboundedSender<AgendaPoint>
+) -> Result<Option<String>, ParseError> {
     if message.starts_with("!add ") {
         let mut agenda = read_agenda();
-        agenda.points.push(AgendaPoint {
+        let agenda_point = AgendaPoint {
             title: message[5..].to_string(),
             adder: sender.to_string(),
-        });
+        };
+        point_sender.send(agenda_point.clone()).unwrap();
+        agenda.points.push(agenda_point);
         agenda.write();
         Ok(None)
     } else if message.starts_with("!agenda") {

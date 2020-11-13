@@ -22,42 +22,60 @@ const CHANNEL: Option<&str> = None;
 struct Handler {
     sender: mpsc::UnboundedSender<AgendaPoint>,
     slack_sender: slack::Sender,
-    slack_channel: String,
+    slack_channel: Option<String>,
+    print_channels: bool,
 }
 
 impl Handler {
     fn new(
         sender: mpsc::UnboundedSender<AgendaPoint>,
         slack_sender: slack::Sender,
-        slack_channel: String
+        slack_channel: Option<String>,
     ) -> Self {
         Self {
             sender,
             slack_sender,
-            slack_channel,
+            slack_channel: slack_channel.clone(),
+            print_channels: slack_channel.is_none()
         }
-    }
-
-    fn sender(&self) -> &mpsc::UnboundedSender<AgendaPoint> {
-        &self.sender
     }
 }
 
 impl slack::EventHandler for Handler {
-    fn on_event(&mut self, _cli: &slack::RtmClient, event: slack::Event) {
+    fn on_event(&mut self, cli: &slack::RtmClient, event: slack::Event) {
         println!("on_event: {:#?}", event);
         match event {
+            Event::Hello => {
+                if self.print_channels {
+                    println!("Slack channels found: {:#?}",
+                             cli
+                             .start_response()
+                             .channels
+                             .as_ref()
+                             .and_then(|channels| {
+                                 Some(channels
+                                      .iter()
+                                      .map(|channel| format!("{}: {}",
+                                                             channel.name.as_ref().unwrap_or(&"??".to_string()), //TODO &"".to_string() ?
+                                                             channel.id.as_ref().unwrap_or(&"??".to_string())))
+                                      .collect::<Vec<_>>())
+                             }));
+                }
+            }
             Event::Message(msg) => {
-                match *msg {
-                    Message::Standard(msg) => {
-                        if let Ok(Some(s)) = parse_message(
-                            &msg.text.unwrap_or("".to_string()),
-                            &msg.user.unwrap_or("??".to_string()),
-                        ) {
-                            self.slack_sender.send_message(self.slack_channel.as_str(), &s).unwrap();
+                if let Some(channel) = &self.slack_channel {
+                    match *msg {
+                        Message::Standard(msg) => {
+                            if let Ok(Some(s)) = parse_message(
+                                &msg.text.unwrap_or("".to_string()),
+                                &msg.user.unwrap_or("??".to_string()),
+                                &self.sender,
+                            ) {
+                                self.slack_sender.send_message(channel.as_str(), &s).unwrap();
+                            }
                         }
+                        _ => {}
                     }
-                    _ => {}
                 }
             }
             _ => {}
@@ -80,12 +98,18 @@ pub async fn handle(
     println!("Setting up Slack");
 
     let token = std::env::var("SLACK_API_TOKEN").unwrap_or_else(|_| TOKEN.expect("Missing slack token").to_string());
-    let token_clone = token.clone();
+    let channel = match std::env::var("SLACK_CHANNEL") {
+        Ok(channel) => Some(channel),
+        Err(_) => match CHANNEL {
+            Some(channel) => Some(channel.to_string()),
+            None => None
+        }
+    };
     let client = spawn_blocking(move || {
         slack::RtmClient::login(&token).unwrap()
     }).await.unwrap();
 
-    let mut handler = Handler::new(sender, client.sender().clone(), token_clone);
+    let mut handler = Handler::new(sender, client.sender().clone(), channel.clone());
     let slack_sender = client.sender().clone();
 
     let (_, _) = join!(
@@ -97,20 +121,22 @@ pub async fn handle(
                 }
             }
         }),
-        spawn(receive_from_discord(receiver, slack_sender))
+        spawn(receive_from_discord(receiver, slack_sender, channel))
     );
 }
 
 async fn receive_from_discord(
     mut receiver: mpsc::UnboundedReceiver<AgendaPoint>,
     sender: slack::Sender,
+    channel: Option<String>,
 ) {
-    while let Some(point) = receiver.recv().await {
-        //TODO Sending messages is very slow sometimes. Have seen delays
-        // from 5 up to 20(!) seconds.
-        let channel = std::env::var("SLACK_CHANNEL").unwrap_or_else(|_| CHANNEL.expect("Missing slack channel").to_string());
-        sender.send_typing(&channel).unwrap();
-        sender.send_message(&channel, &point.to_add_message()).unwrap();
-        println!("Slack message sent");
+    if let Some(channel) = channel {
+        while let Some(point) = receiver.recv().await {
+            //TODO Sending messages is very slow sometimes. Have seen delays
+            // from 5 up to 20(!) seconds.
+            sender.send_typing(&channel).unwrap();
+            sender.send_message(&channel, &point.to_add_message()).unwrap();
+            println!("Slack message sent");
+        }
     }
 }
