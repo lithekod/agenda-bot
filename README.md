@@ -37,8 +37,8 @@ except for development purposes) by editing `src/discord.rs` and `src/slack.rs`.
 Which channels the messages are sent to is currently specified via either
 hard-coded constant values (again, not recommended, but at least not a security
 issue here) or environment variables (`DISCORD_CHANNEL` and `SLACK_CHANNEL`). If
-neither is set the bot will print a list of all channels and their IDs when
-starting so you can specify a channel.
+any of the two isn't set the bot will print a list of channels and their IDs
+when starting so you can specify a channel.
 
 The following shows all necessary steps needed to build and run the bot:
 
