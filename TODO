@@ -3,8 +3,6 @@ META:
 * aur??
 
 FEATURES:
-* specify channels to read from and send in
---- basic usage cutoff ---
 * specify trusted users (i.e. board members)
 * mention the bot to do stuff?
 * react to messages with +1 when they are read
@@ -16,6 +14,7 @@ ISSUES:
 * too many unwraps
 * use correct form of string
 * panics on !agenda with empty agenda
+* general refactoring
 
 DONE:
 * login
@@ -29,6 +28,7 @@ DONE:
   print
   clear
   help
+* specify channels to read from and send in
 
 LATER: (ordering and scope not actual)
 * send reminders
