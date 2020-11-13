@@ -30,13 +30,15 @@ In order to actually use the bot you need:
 - A Discord bot user
 - Necessary permissions to add bots to your Slack workspace and Discord server
 
-Then, either pass the bot tokens as enviornment variables (`DISCORD_API_TOKEN` and
-`SLACK_API_TOKEN`), or hard-code them into the binary (**NOT RECOMMENDED**
+Then, either pass the bot tokens as enviornment variables (`DISCORD_API_TOKEN`
+and `SLACK_API_TOKEN`), or hard-code them into the binary (**NOT RECOMMENDED**
 except for development purposes) by editing `src/discord.rs` and `src/slack.rs`.
 
 Which channels the messages are sent to is currently specified via either
 hard-coded constant values (again, not recommended, but at least not a security
-issue here) or environment variables (`DISCORD_CHANNEL` and `SLACK_CHANNEL`).
+issue here) or environment variables (`DISCORD_CHANNEL` and `SLACK_CHANNEL`). If
+neither is set the bot will print a list of all channels and their IDs when
+starting so you can specify a channel.
 
 The following shows all necessary steps needed to build and run the bot:
 
