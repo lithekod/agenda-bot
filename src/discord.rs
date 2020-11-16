@@ -26,7 +26,7 @@ use tokio::{
 };
 
 const TOKEN: Option<&str> = None;
-const CHANNEL: Option<u64> = None;
+const CHANNEL: Option<ChannelId> = None;
 
 pub async fn handle(
     sender: mpsc::UnboundedSender<AgendaPoint>,
