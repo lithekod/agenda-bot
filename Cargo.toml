@@ -1,0 +1,24 @@
+[package]
+name = "agenda-bot"
+version = "0.1.0"
+authors = ["Gustav Sörnäs <gustav@sornas.net>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+futures = "0.3"
+serde_json = "1.0"
+slack = "0.25"
+
+[dependencies.discord]
+git = "https://github.com/SpaceManiac/discord-rs"
+default-features = false
+
+[dependencies.serde]
+version = "1.0"
+features = [ "derive" ]
+
+[dependencies.tokio]
+version = "0.2"
+features = [ "macros", "sync" ]
