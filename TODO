@@ -13,7 +13,6 @@ ISSUES:
 * sending to slack is very slow
 * too many unwraps
 * use correct form of string
-* panics on !agenda with empty agenda
 * general refactoring
 
 DONE:
@@ -29,6 +28,7 @@ DONE:
   clear
   help
 * specify channels to read from and send in
+* panics on !agenda with empty agenda
 
 LATER: (ordering and scope not actual)
 * send reminders
