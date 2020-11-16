@@ -1,6 +1,17 @@
 A bot to help the board with their meeting agenda and meeting
 reminders.
 
+## Features
+
+- `!add item` adds an item to the agenda. Confirmation is sent in both Slack and
+  Discord.
+- `!agenda` prints the current agenda and who added each item.
+- `!clear` clears the agenda.
+- `!help` prints a short help message.
+
+See the TODO for feature ideas. Proper features and bugs are tracked using
+Github issues.
+
 ## Requirements
 
 The binary itself depends on OpenSSL, as well as the usual suspects (glibc):
@@ -52,28 +63,3 @@ $ DISCORD_API_TOKEN=""     \ # fill
         cargo run
 ```
 
-## Current (non-)features
-
-- Messages are sent where they should
-- ...but they aren't stored anywhere and can't be summarized.
-- No reminders.
-- No permissions / trusted users / trusted channels. Please, only private
-  testing servers for now.
-
-See the TODO for more planned features.
-
-## Sales pitch (not yet implemented)
-
-Board members can add items to the agenda by sending a message
-containing something like
-
-```
-/agenda Kaffet är slut!
-```
-
-in either Slack or Discord. The bot sends a confirmation in both Slack
-and Discord so everyone can see what's being added.
-
-Every Wednesday afternoon (configurable) the bot sends a reminder and the agenda
-in both Slack and Discord. An additional reminder is sent 1 hour before the
-meeting.
