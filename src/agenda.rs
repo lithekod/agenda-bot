@@ -24,6 +24,11 @@ impl AgendaPoint {
     pub fn to_add_message(&self) -> String {
         format!("'{}' added by {}", self.title, self.adder)
     }
+
+    fn to_add_message_response(&self) -> String {
+        //TODO should add a reaction instead
+        format!("Added '{}'", self.title)
+    }
 }
 
 #[derive(Deserialize, Serialize)]
@@ -55,9 +60,10 @@ pub fn parse_message(
             adder: sender.to_string(),
         };
         point_sender.send(agenda_point.clone()).unwrap();
+        let response = agenda_point.to_add_message_response();
         agenda.points.push(agenda_point);
         agenda.write();
-        Ok(None)
+        Ok(Some(response))
     } else if message.starts_with("!agenda") {
         Ok(Some(read_agenda()
                 .points
@@ -71,7 +77,7 @@ pub fn parse_message(
         }.write();
         Ok(None)
     } else if message.starts_with("!help") {
-        Ok(Some("Available commands:\n  !add\n  !agenda\n  !clear\n  !help".to_string()))
+        Ok(Some("Available commands:\n```!add    -- Add something\n!agenda -- Print the agenda\n!clear  -- Remove all items\n!help```".to_string()))
     } else {
         Err(ParseError::NoSuchCommand)
     }
