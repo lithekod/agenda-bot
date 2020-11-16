@@ -9,9 +9,6 @@ reminders.
 - `!clear` clears the agenda.
 - `!help` prints a short help message.
 
-See the TODO for feature ideas. Proper features and bugs are tracked using
-Github issues.
-
 ## Requirements
 
 The binary itself depends on OpenSSL, as well as the usual suspects (glibc):
