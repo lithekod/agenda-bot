@@ -8,6 +8,7 @@ use discord::{
         ChannelId,
         Event,
         PossibleServer,
+        ReactionEmoji,
     },
     Discord,
     Error,
@@ -71,10 +72,11 @@ fn receive_events(
                                  server
                                  .channels
                                  .iter()
-                                 .map(|channel| format!("{}: {} ({:?})",
-                                                        channel.name,
-                                                        channel.id,
-                                                        channel.kind))
+                                 .map(|channel|
+                                      format!("{}: {} ({:?})",
+                                              channel.name,
+                                              channel.id,
+                                              channel.kind))
                                  .collect::<Vec<_>>());
                     }
                 }
@@ -83,15 +85,29 @@ fn receive_events(
             Ok(Event::MessageCreate(message)) => {
                 if let Some(channel) = channel {
                     if channel == message.channel_id {
-                        if let Ok(Some(s)) = parse_message(
+                        match parse_message(
                             &message.content,
                             &message.author.name,
-                            &sender,
+                            &sender
                         ) {
-                            client.lock().unwrap().send_message(channel,
-                                                                &s,
-                                                                "",
-                                                                false).unwrap();
+                            Ok(Some(s)) => {
+                                client.lock().unwrap().send_message(
+                                    channel,
+                                    &s,
+                                    "",
+                                    false
+                                ).unwrap();
+                            }
+                            Ok(None) => {
+                                // thumbs up
+                                client.lock().unwrap().add_reaction(
+                                    channel,
+                                    message.id,
+                                    ReactionEmoji::Unicode("👍".to_string())
+                                ).unwrap();
+
+                            }
+                            Err(_) => {}
                         }
                     }
                 }
@@ -116,10 +132,12 @@ async fn receive_from_slack(
     if let Some(channel) = channel {
         while let Some(point) = receiver.recv().await {
             println!("Discord received '{}'", point);
-            client.lock().unwrap().send_message(channel,
-                                                &point.to_add_message(),
-                                                "",
-                                                false).unwrap();
+            client.lock().unwrap().send_message(
+                channel,
+                &point.to_add_message(),
+                "",
+                false
+            ).unwrap();
         }
     }
 

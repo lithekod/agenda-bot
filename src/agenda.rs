@@ -24,11 +24,6 @@ impl AgendaPoint {
     pub fn to_add_message(&self) -> String {
         format!("'{}' added by {}", self.title, self.adder)
     }
-
-    fn to_add_message_response(&self) -> String {
-        //TODO should add a reaction instead
-        format!("Added '{}'", self.title)
-    }
 }
 
 #[derive(Deserialize, Serialize)]
@@ -60,10 +55,9 @@ pub fn parse_message(
             adder: sender.to_string(),
         };
         point_sender.send(agenda_point.clone()).unwrap();
-        let response = agenda_point.to_add_message_response();
         agenda.points.push(agenda_point);
         agenda.write();
-        Ok(Some(response))
+        Ok(None)
     } else if message.starts_with("!agenda") {
         Ok(Some(read_agenda()
                 .points
