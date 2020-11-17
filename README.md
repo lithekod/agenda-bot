@@ -51,8 +51,8 @@ when starting so you can specify a channel.
 The following shows all necessary steps needed to build and run the bot:
 
 ```shell
-$ git clone https://github.com/lithekod/agenda-bot.git
-$ cd agenda-bot
+$ git clone https://github.com/lithekod/kodapa.git
+$ cd kodapa
 $ DISCORD_API_TOKEN=""     \ # fill
         SLACK_API_TOKEN="" \ # in
         DISCORD_CHANNEL="" \ # your
