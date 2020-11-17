@@ -15,12 +15,12 @@ tokio-compat-02 = "0.1"
 
 [dependencies.discord]
 git = "https://github.com/SpaceManiac/discord-rs"
-default-features = false # disable voice
+default-features = false
 
 [dependencies.serde]
 version = "1.0"
 features = [ "derive" ]
 
 [dependencies.tokio]
-version = "0.3"
-features = [ "macros", "rt", "rt-multi-thread", "sync" ]
+version = "0.2"
+features = [ "macros", "sync" ]
