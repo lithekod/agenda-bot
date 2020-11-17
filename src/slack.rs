@@ -8,13 +8,16 @@ use slack::{
     Event,
     Message,
 };
+use slack_api::reactions;
 use tokio::{
+    runtime::Runtime,
     sync::mpsc,
     task::{
         spawn,
         spawn_blocking,
     },
 };
+use tokio_compat_02::FutureExt;
 
 const TOKEN: Option<&str> = None;
 const CHANNEL: Option<&str> = None;
@@ -24,6 +27,7 @@ struct Handler {
     slack_sender: slack::Sender,
     slack_channel: Option<String>,
     print_channels: bool,
+    slack_token: String,
 }
 
 impl Handler {
@@ -31,12 +35,14 @@ impl Handler {
         sender: mpsc::UnboundedSender<AgendaPoint>,
         slack_sender: slack::Sender,
         slack_channel: Option<String>,
+        slack_token: String,
     ) -> Self {
         Self {
             sender,
             slack_sender,
             slack_channel: slack_channel.clone(),
-            print_channels: slack_channel.is_none()
+            print_channels: slack_channel.is_none(),
+            slack_token,
         }
     }
 }
@@ -66,12 +72,33 @@ impl slack::EventHandler for Handler {
                     match *msg {
                         Message::Standard(msg) => {
                             if msg.channel.is_some() && *channel == msg.channel.unwrap() { //TODO
-                                if let Ok(Some(s)) = parse_message(
+                                match parse_message(
                                     &msg.text.unwrap_or("".to_string()),
                                     &msg.user.unwrap_or("??".to_string()),
                                     &self.sender,
                                 ) {
-                                    self.slack_sender.send_message(channel.as_str(), &s).unwrap();
+                                    Ok(Some(s)) => {
+                                        self.slack_sender.send_message(
+                                            channel.as_str(),
+                                            &s
+                                        ).unwrap();
+                                    }
+                                    Ok(None) => {
+                                        let client = slack_api::requests::default_client().unwrap();
+                                        Runtime::new().unwrap().block_on(
+                                            reactions::add(
+                                                &client,
+                                                &self.slack_token,
+                                                &reactions::AddRequest{
+                                                    name: "+1",
+                                                    file: None,
+                                                    file_comment: None,
+                                                    channel: Some(channel.as_str()),
+                                                    timestamp: Some(msg.ts.unwrap()),
+                                                }).compat()
+                                        ).unwrap();
+                                    }
+                                    Err(_) => {}
                                 }
                             }
                         }
@@ -102,11 +129,12 @@ pub async fn handle(
             None => None
         }
     };
+    let slack_token = token.to_string();
     let client = spawn_blocking(move || {
         slack::RtmClient::login(&token).unwrap()
     }).await.unwrap();
 
-    let mut handler = Handler::new(sender, client.sender().clone(), channel.clone());
+    let mut handler = Handler::new(sender, client.sender().clone(), channel.clone(), slack_token);
     let slack_sender = client.sender().clone();
 
     let (_, _) = join!(

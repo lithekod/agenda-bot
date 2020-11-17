@@ -10,6 +10,8 @@ edition = "2018"
 futures = "0.3"
 serde_json = "1.0"
 slack = "0.25"
+slack_api = "0.23"
+tokio-compat-02 = "0.1"
 
 [dependencies.discord]
 git = "https://github.com/SpaceManiac/discord-rs"
