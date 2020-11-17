@@ -1,9 +1,12 @@
+# KODAPA
+"Kontinuerlig och Ovärderlig Distribution Av Påminnelser och Agendor"
+
 A bot to help the board with their meeting agenda and meeting
 reminders.
 
 ## Features
 
-- `!add item` adds an item to the agenda. Confirmation is sent in both Slack and
+- `!add <item>` adds an item to the agenda. Confirmation is sent in both Slack and
   Discord.
 - `!agenda` prints the current agenda and who added each item.
 - `!clear` clears the agenda.
