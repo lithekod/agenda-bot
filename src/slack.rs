@@ -1,6 +1,7 @@
 use crate::agenda::{
     parse_message,
-    AgendaPoint
+    AgendaPoint,
+    Emoji
 };
 
 use futures::join;
@@ -77,15 +78,14 @@ impl slack::EventHandler for Handler {
                                 match parse_message(
                                     &msg.text.unwrap_or("".to_string()),
                                     &msg.user.unwrap_or("??".to_string()),
+                                    |s: String| {
+                                        self.slack_sender
+                                            .send_message(channel.as_str(), &s)
+                                            .unwrap();
+                                    },
                                     &self.sender,
                                 ) {
-                                    Ok(Some(s)) => {
-                                        self.slack_sender.send_message(
-                                            channel.as_str(),
-                                            &s
-                                        ).unwrap();
-                                    }
-                                    Ok(None) => {
+                                    Some(Emoji::Ok) => {
                                         let client = slack_api::requests::default_client().unwrap();
                                         Runtime::new().unwrap().block_on(
                                             reactions::add(
@@ -100,7 +100,7 @@ impl slack::EventHandler for Handler {
                                                 }).compat()
                                         ).unwrap();
                                     }
-                                    Err(_) => {}
+                                    _ => {}
                                 }
                             }
                         }

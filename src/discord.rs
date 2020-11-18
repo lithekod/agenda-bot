@@ -1,6 +1,7 @@
 use crate::agenda::{
     parse_message,
-    AgendaPoint
+    AgendaPoint,
+    Emoji,
 };
 
 use discord::{
@@ -92,25 +93,23 @@ fn receive_events(
                         match parse_message(
                             &message.content,
                             &message.author.name,
+                            |s: String| {
+                                client
+                                    .lock()
+                                    .unwrap()
+                                    .send_message(channel, &s, "", false)
+                                    .unwrap();
+                            },
                             &sender
                         ) {
-                            Ok(Some(s)) => {
-                                client.lock().unwrap().send_message(
-                                    channel,
-                                    &s,
-                                    "",
-                                    false
-                                ).unwrap();
-                            }
-                            Ok(None) => {
-                                // thumbs up
+                            Some(Emoji::Ok) => {
                                 client.lock().unwrap().add_reaction(
                                     channel,
                                     message.id,
                                     ReactionEmoji::Unicode("👍".to_string())
                                 ).unwrap();
                             }
-                            Err(_) => {}
+                            _ => {}
                         }
                     }
                 }
