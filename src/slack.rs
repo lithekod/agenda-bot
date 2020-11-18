@@ -57,13 +57,15 @@ impl slack::EventHandler for Handler {
                              .start_response()
                              .channels
                              .as_ref()
-                             .and_then(|channels| {
-                                 Some(channels
-                                      .iter()
-                                      .map(|channel| format!("{}: {}",
-                                                             channel.name.as_ref().unwrap_or(&"??".to_string()), //TODO &"".to_string() ?
-                                                             channel.id.as_ref().unwrap_or(&"??".to_string())))  //TODO
-                                      .collect::<Vec<_>>())
+                             .map(|channels| {
+                                 channels
+                                     .iter()
+                                     .map(|channel| format!(
+                                         "{}: {}",
+                                         channel.name.as_deref().unwrap_or("??"),
+                                         channel.id.as_deref().unwrap_or("??"),
+                                     ))
+                                     .collect::<Vec<_>>()
                              }));
                 }
             }

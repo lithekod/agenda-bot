@@ -35,7 +35,8 @@ pub async fn handle(
 ) {
     println!("Setting up Discord");
 
-    let token = std::env::var("DISCORD_API_TOKEN").unwrap_or_else(|_| TOKEN.expect("Missing Discord token").to_string());
+    let token = std::env::var("DISCORD_API_TOKEN")
+        .unwrap_or_else(|_| TOKEN.expect("Missing Discord token").to_string());
     let client = Discord::from_bot_token(&token);
 
     if let Ok(client) = client {
@@ -43,12 +44,11 @@ pub async fn handle(
         let our_id = client.get_current_user().unwrap().id;
         let client = Arc::new(Mutex::new(client));
 
-        let channel = match std::env::var("DISCORD_CHANNEL") {
-            Ok(channel) => Some(ChannelId(channel.parse::<u64>().unwrap())),
-            Err(_) => CHANNEL,
-        };
+        let channel = std::env::var("DISCORD_CHANNEL")
+            .map(|id| Some(ChannelId(id.parse::<u64>().unwrap())))
+            .unwrap_or(CHANNEL);
 
-        let (_, _) = join!( //TODO?
+        let (_, _) = join!(
             spawn(receive_from_slack(receiver, Arc::clone(&client), channel)),
             spawn_blocking(move || receive_events(our_id, connection, sender, client, channel)),
         );
@@ -65,8 +65,8 @@ fn receive_events(
     loop {
         match connection.recv_event() {
             Ok(Event::ServerCreate(server)) => {
-                if channel.is_none() {
-                    if let PossibleServer::Online(server) = server {
+                match (channel, server) {
+                    (None, PossibleServer::Online(server)) => {
                         println!("Discord channels in {}: {:#?}",
                                  server.name,
                                  server
@@ -79,6 +79,10 @@ fn receive_events(
                                               channel.kind))
                                  .collect::<Vec<_>>());
                     }
+                    (None, PossibleServer::Offline(server)) => {
+                        println!("Server {} is offline", server);
+                    }
+                    (Some(_), _) => {}
                 }
             }
 
@@ -105,7 +109,6 @@ fn receive_events(
                                     message.id,
                                     ReactionEmoji::Unicode("👍".to_string())
                                 ).unwrap();
-
                             }
                             Err(_) => {}
                         }
