@@ -1,34 +1,31 @@
-use crate::agenda::{
-    parse_message,
-    AgendaPoint,
-    Emoji,
-};
+use crate::agenda::{parse_message, AgendaPoint, Emoji};
 
 use discord::{
-    model::{
-        ChannelId,
-        Event,
-        PossibleServer,
-        ReactionEmoji,
-    },
+    model::{ChannelId, Event, PossibleServer, ReactionEmoji, UserId},
     Discord,
     Error,
 };
 use futures::join;
-use std::sync::{
-    Arc,
-    Mutex,
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
 };
 use tokio::{
     sync::mpsc,
-    task::{
-        spawn,
-        spawn_blocking,
-    },
+    task::{spawn, spawn_blocking},
 };
 
 const TOKEN: Option<&str> = None;
 const CHANNEL: Option<ChannelId> = None;
+
+struct Handler {
+    _our_id: UserId,
+    connection: discord::Connection,
+    sender: mpsc::UnboundedSender<AgendaPoint>,
+    client: Arc<Mutex<discord::Discord>>,
+    channel: Option<ChannelId>,
+    display_names: HashMap<UserId, String>,
+}
 
 pub async fn handle(
     sender: mpsc::UnboundedSender<AgendaPoint>,
@@ -42,7 +39,7 @@ pub async fn handle(
 
     if let Ok(client) = client {
         let (connection, _) = client.connect().expect("Discord connect failed"); //TODO
-        let our_id = client.get_current_user().unwrap().id;
+        let _our_id = client.get_current_user().unwrap().id;
         let client = Arc::new(Mutex::new(client));
 
         let channel = std::env::var("DISCORD_CHANNEL")
@@ -51,23 +48,24 @@ pub async fn handle(
 
         let (_, _) = join!(
             spawn(receive_from_slack(receiver, Arc::clone(&client), channel)),
-            spawn_blocking(move || receive_events(our_id, connection, sender, client, channel)),
+            spawn_blocking(move || receive_events(&mut Handler {
+                _our_id,
+                connection,
+                sender,
+                client,
+                channel,
+                display_names: HashMap::new(),
+            })),
         );
     }
 }
 
-fn receive_events(
-    _our_id: discord::model::UserId,
-    mut connection: discord::Connection,
-    sender: mpsc::UnboundedSender<AgendaPoint>,
-    client: Arc<Mutex<discord::Discord>>,
-    channel: Option<ChannelId>,
-) {
+fn receive_events(handler: &mut Handler) {
     loop {
-        match connection.recv_event() {
+        match handler.connection.recv_event() {
             Ok(Event::ServerCreate(server)) => {
-                match (channel, server) {
-                    (None, PossibleServer::Online(server)) => {
+                if let PossibleServer::Online(server) = server {
+                    if handler.channel.is_none() {
                         println!("Discord channels in {}: {:#?}",
                                  server.name,
                                  server
@@ -80,30 +78,43 @@ fn receive_events(
                                               channel.kind))
                                  .collect::<Vec<_>>());
                     }
-                    (None, PossibleServer::Offline(server)) => {
+                    for member in server.members {
+                        if let Some(nick) = member.nick {
+                            handler.display_names.insert(member.user.id, nick);
+                        }
+                    }
+
+                }
+                else if let PossibleServer::Offline(server) = server {
+                    if handler.channel.is_none() {
                         println!("Server {} is offline", server);
                     }
-                    (Some(_), _) => {}
                 }
             }
 
             Ok(Event::MessageCreate(message)) => {
-                if let Some(channel) = channel {
+                if let Some(channel) = handler.channel {
                     if channel == message.channel_id {
                         match parse_message(
                             &message.content,
-                            &message.author.name,
+                            if let Some(display_name) = handler.display_names.get(&message.author.id) {
+                                display_name
+                            } else {
+                                println!("Missing display name for '{}' (see 'Discord display names' in the readme)",
+                                         message.author.name);
+                                &message.author.name
+                            },
                             |s: String| {
-                                client
+                                handler.client
                                     .lock()
                                     .unwrap()
                                     .send_message(channel, &s, "", false)
                                     .unwrap();
                             },
-                            &sender
+                            &handler.sender
                         ) {
                             Some(Emoji::Ok) => {
-                                client.lock().unwrap().add_reaction(
+                                handler.client.lock().unwrap().add_reaction(
                                     channel,
                                     message.id,
                                     ReactionEmoji::Unicode("👍".to_string())

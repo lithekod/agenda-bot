@@ -63,3 +63,7 @@ $ DISCORD_API_TOKEN=""     \ # fill
         cargo run
 ```
 
+## Discord display names
+
+In order to see Discord nicknames the bot needs the Presence Intent which can
+be enabled on your Discord apps bot page.
