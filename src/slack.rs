@@ -42,7 +42,6 @@ impl Handler {
             display_names: Arc::new(Mutex::new(HashMap::new())),
         }
     }
-
 }
 
 async fn get_or_insert_display_name(
@@ -54,19 +53,18 @@ async fn get_or_insert_display_name(
         Entry::Occupied(o) => o.get().to_string(),
         Entry::Vacant(v) => {
             let client = slack_api::requests::default_client().unwrap();
-            if let Some(user) = users::list(
-                &client,
-                slack_token,
-                &users::ListRequest {presence: None}
-            ).compat()
-             .await
-             .unwrap()
-             .members
-             .unwrap()
-             .iter()
-             .find(|user| user.id.is_some() && user.id.as_deref().unwrap() == user_id)
+            if let Some(user) =
+                users::list(&client, slack_token, &users::ListRequest { presence: None })
+                    .compat()
+                    .await
+                    .unwrap()
+                    .members
+                    .unwrap()
+                    .iter()
+                    .find(|user| user.id.is_some() && user.id.as_deref().unwrap() == user_id)
             {
-                v.insert(user.real_name.as_ref().unwrap().clone()).to_string()
+                v.insert(user.real_name.as_ref().unwrap().clone())
+                    .to_string()
             } else {
                 user_id
             }
@@ -79,36 +77,39 @@ impl slack::EventHandler for Handler {
         match event {
             Event::Hello => {
                 if self.print_channels {
-                    println!("Slack channels found: {:#?}",
-                             cli
-                             .start_response()
-                             .channels
-                             .as_ref()
-                             .map(|channels| {
-                                 channels
-                                     .iter()
-                                     .map(|channel| format!(
-                                         "{}: {}",
-                                         channel.name.as_deref().unwrap_or("??"),
-                                         channel.id.as_deref().unwrap_or("??"),
-                                     ))
-                                     .collect::<Vec<_>>()
-                             }));
+                    println!(
+                        "Slack channels found: {:#?}",
+                        cli.start_response().channels.as_ref().map(|channels| {
+                            channels
+                                .iter()
+                                .map(|channel| {
+                                    format!(
+                                        "{}: {}",
+                                        channel.name.as_deref().unwrap_or("??"),
+                                        channel.id.as_deref().unwrap_or("??"),
+                                    )
+                                })
+                                .collect::<Vec<_>>()
+                        })
+                    );
                 }
             }
             Event::Message(msg) => {
                 if let Some(channel) = &self.slack_channel.clone() {
                     match *msg {
                         Message::Standard(msg) => {
-                            if msg.channel.is_some() && *channel == msg.channel.unwrap() { //TODO
+                            if msg.channel.is_some() && *channel == msg.channel.unwrap() {
+                                //TODO
                                 let user = match msg.user {
                                     Some(s) => Runtime::new().unwrap().block_on(
                                         get_or_insert_display_name(
                                             Arc::clone(&self.display_names),
                                             s,
                                             &self.slack_token,
-                                        ).compat()),
-                                    None => "??".to_string()
+                                        )
+                                        .compat(),
+                                    ),
+                                    None => "??".to_string(),
                                 };
                                 match parse_message(
                                     &msg.text.unwrap_or("".to_string()),
@@ -122,18 +123,23 @@ impl slack::EventHandler for Handler {
                                 ) {
                                     Some(Emoji::Ok) => {
                                         let client = slack_api::requests::default_client().unwrap();
-                                        Runtime::new().unwrap().block_on(
-                                            reactions::add(
-                                                &client,
-                                                &self.slack_token,
-                                                &reactions::AddRequest{
-                                                    name: "+1",
-                                                    file: None,
-                                                    file_comment: None,
-                                                    channel: Some(channel.as_str()),
-                                                    timestamp: Some(msg.ts.unwrap()),
-                                                }).compat()
-                                        ).unwrap();
+                                        Runtime::new()
+                                            .unwrap()
+                                            .block_on(
+                                                reactions::add(
+                                                    &client,
+                                                    &self.slack_token,
+                                                    &reactions::AddRequest {
+                                                        name: "+1",
+                                                        file: None,
+                                                        file_comment: None,
+                                                        channel: Some(channel.as_str()),
+                                                        timestamp: Some(msg.ts.unwrap()),
+                                                    },
+                                                )
+                                                .compat(),
+                                            )
+                                            .unwrap();
                                     }
                                     _ => {}
                                 }
@@ -158,29 +164,33 @@ pub async fn handle(
 ) {
     println!("Setting up Slack");
 
-    let token = std::env::var("SLACK_API_TOKEN").unwrap_or_else(|_| TOKEN.expect("Missing slack token").to_string());
+    let token = std::env::var("SLACK_API_TOKEN")
+        .unwrap_or_else(|_| TOKEN.expect("Missing slack token").to_string());
     let channel = match std::env::var("SLACK_CHANNEL") {
         Ok(channel) => Some(channel),
         Err(_) => match CHANNEL {
             Some(channel) => Some(channel.to_string()),
-            None => None
-        }
+            None => None,
+        },
     };
     let slack_token = token.to_string();
-    let client = spawn_blocking(move || {
-        slack::RtmClient::login(&token).unwrap()
-    }).await.unwrap();
+    let client = spawn_blocking(move || slack::RtmClient::login(&token).unwrap())
+        .await
+        .unwrap();
 
-    let mut handler = Handler::new(sender, client.sender().clone(), channel.clone(), slack_token);
+    let mut handler = Handler::new(
+        sender,
+        client.sender().clone(),
+        channel.clone(),
+        slack_token,
+    );
     let slack_sender = client.sender().clone();
 
     let (_, _) = join!(
         spawn_blocking(move || {
             match client.run(&mut handler) {
                 Ok(_) => {}
-                Err(e) => {
-                    println!("Error: {}", e)
-                }
+                Err(e) => println!("Error: {}", e),
             }
         }),
         spawn(receive_from_discord(receiver, slack_sender, channel))
@@ -197,7 +207,9 @@ async fn receive_from_discord(
             //TODO Sending messages is very slow sometimes. Have seen delays
             // from 5 up to 20(!) seconds.
             sender.send_typing(&channel).unwrap();
-            sender.send_message(&channel, &point.to_add_message()).unwrap();
+            sender
+                .send_message(&channel, &point.to_add_message())
+                .unwrap();
             println!("Slack message sent");
         }
     }

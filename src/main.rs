@@ -18,4 +18,3 @@ async fn main() {
         slack::handle(from_slack, to_slack),
     );
 }
-
