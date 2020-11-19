@@ -1,22 +1,16 @@
-use crate::agenda::{
-    parse_message,
-    AgendaPoint,
-    Emoji
-};
+use crate::agenda::{parse_message, AgendaPoint, Emoji};
 
 use futures::join;
-use slack::{
-    Event,
-    Message,
+use slack::{Event, Message};
+use slack_api::{reactions, users};
+use std::{
+    collections::{hash_map::Entry, HashMap},
+    sync::{Arc, Mutex},
 };
-use slack_api::reactions;
 use tokio::{
     runtime::Runtime,
     sync::mpsc,
-    task::{
-        spawn,
-        spawn_blocking,
-    },
+    task::{spawn, spawn_blocking},
 };
 use tokio_compat_02::FutureExt;
 
@@ -29,6 +23,7 @@ struct Handler {
     slack_channel: Option<String>,
     print_channels: bool,
     slack_token: String,
+    display_names: Arc<Mutex<HashMap<String, String>>>,
 }
 
 impl Handler {
@@ -44,6 +39,37 @@ impl Handler {
             slack_channel: slack_channel.clone(),
             print_channels: slack_channel.is_none(),
             slack_token,
+            display_names: Arc::new(Mutex::new(HashMap::new())),
+        }
+    }
+
+}
+
+async fn get_or_insert_display_name(
+    display_names: Arc<Mutex<HashMap<String, String>>>,
+    user_id: String,
+    slack_token: &str,
+) -> String {
+    match display_names.lock().unwrap().entry(user_id.clone()) {
+        Entry::Occupied(o) => o.get().to_string(),
+        Entry::Vacant(v) => {
+            let client = slack_api::requests::default_client().unwrap();
+            if let Some(user) = users::list(
+                &client,
+                slack_token,
+                &users::ListRequest {presence: None}
+            ).compat()
+             .await
+             .unwrap()
+             .members
+             .unwrap()
+             .iter()
+             .find(|user| user.id.is_some() && user.id.as_deref().unwrap() == user_id)
+            {
+                v.insert(user.real_name.as_ref().unwrap().clone()).to_string()
+            } else {
+                user_id
+            }
         }
     }
 }
@@ -71,13 +97,22 @@ impl slack::EventHandler for Handler {
                 }
             }
             Event::Message(msg) => {
-                if let Some(channel) = &self.slack_channel {
+                if let Some(channel) = &self.slack_channel.clone() {
                     match *msg {
                         Message::Standard(msg) => {
                             if msg.channel.is_some() && *channel == msg.channel.unwrap() { //TODO
+                                let user = match msg.user {
+                                    Some(s) => Runtime::new().unwrap().block_on(
+                                        get_or_insert_display_name(
+                                            Arc::clone(&self.display_names),
+                                            s,
+                                            &self.slack_token,
+                                        ).compat()),
+                                    None => "??".to_string()
+                                };
                                 match parse_message(
                                     &msg.text.unwrap_or("".to_string()),
-                                    &msg.user.unwrap_or("??".to_string()),
+                                    &user,
                                     |s: String| {
                                         self.slack_sender
                                             .send_message(channel.as_str(), &s)
