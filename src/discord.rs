@@ -1,4 +1,5 @@
 use crate::agenda::{self, parse_message, AgendaPoint, Emoji};
+use crate::reminder::ReminderType;
 
 use discord::{
     model::{ChannelId, Event, PossibleServer, ReactionEmoji, UserId},
@@ -10,7 +11,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 use tokio::{
-    sync::mpsc,
+    sync::{mpsc, watch},
     task::{spawn, spawn_blocking},
 };
 
@@ -29,6 +30,7 @@ struct Handler {
 pub async fn handle(
     sender: mpsc::UnboundedSender<AgendaPoint>,
     receiver: mpsc::UnboundedReceiver<AgendaPoint>,
+    reminder: watch::Receiver<ReminderType>,
 ) {
     println!("Setting up Discord");
 
@@ -45,8 +47,9 @@ pub async fn handle(
             .map(|id| Some(ChannelId(id.parse::<u64>().unwrap())))
             .unwrap_or(CHANNEL);
 
-        let (_, _) = join!(
+        let (_, _, _) = join!(
             spawn(receive_from_slack(receiver, Arc::clone(&client), channel)),
+            spawn(handle_reminders(reminder, Arc::clone(&client), channel)),
             spawn_blocking(move || receive_events(&mut Handler {
                 _our_id,
                 connection,
@@ -156,6 +159,31 @@ async fn receive_from_slack(
                 .unwrap()
                 .send_message(channel, &point.to_add_message(), "", false)
                 .unwrap();
+        }
+    }
+}
+
+async fn handle_reminders(
+    mut reminder: watch::Receiver<ReminderType>,
+    client: Arc<Mutex<discord::Discord>>,
+    channel: Option<ChannelId>,
+) {
+    if let Some(channel) = channel {
+        while let Some(reminder) = reminder.recv().await {
+            match reminder {
+                ReminderType::OneHour => {
+                    client
+                        .lock()
+                        .unwrap()
+                        .send_message(channel,
+                                      &format!("Meeting in one hour!\n{}",
+                                              agenda::read_agenda().to_string()),
+                                      "",
+                                      false)
+                        .unwrap();
+                },
+                ReminderType::Void => {}
+            }
         }
     }
 }

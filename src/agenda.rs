@@ -91,7 +91,7 @@ where
     }
 }
 
-fn read_agenda() -> Agenda {
+pub fn read_agenda() -> Agenda {
     serde_json::from_str::<Agenda>(
         &fs::read_to_string("agenda.json").expect("Can't read agenda.json"),
     )

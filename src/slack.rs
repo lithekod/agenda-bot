@@ -1,4 +1,5 @@
 use crate::agenda::{self, parse_message, AgendaPoint, Emoji};
+use crate::reminder::ReminderType;
 
 use futures::join;
 use slack::{Event, Message};
@@ -9,7 +10,7 @@ use std::{
 };
 use tokio::{
     runtime::Runtime,
-    sync::mpsc,
+    sync::{mpsc, watch},
     task::{spawn, spawn_blocking},
 };
 use tokio_compat_02::FutureExt;
@@ -137,11 +138,11 @@ impl slack::EventHandler for Handler {
                                                         timestamp: Some(msg.ts.unwrap()),
                                                     },
                                                 )
-                                                .compat(),
+                                                    .compat(),
                                             )
                                             .unwrap();
                                     }
-                                    _ => {}
+                                    _ => {} // parse_message return
                                 }
                             }
                         }
@@ -161,6 +162,7 @@ impl slack::EventHandler for Handler {
 pub async fn handle(
     sender: mpsc::UnboundedSender<AgendaPoint>,
     receiver: mpsc::UnboundedReceiver<AgendaPoint>,
+    reminder: watch::Receiver<ReminderType>,
 ) {
     println!("Setting up Slack");
 
@@ -186,14 +188,15 @@ pub async fn handle(
     );
     let slack_sender = client.sender().clone();
 
-    let (_, _) = join!(
+    let (_, _, _) = join!(
+        spawn(receive_from_discord(receiver, slack_sender.clone(), channel.clone())),
+        spawn(handle_reminders(reminder, slack_sender, channel)),
         spawn_blocking(move || {
             match client.run(&mut handler) {
                 Ok(_) => {}
                 Err(e) => println!("Error: {}", e),
             }
         }),
-        spawn(receive_from_discord(receiver, slack_sender, channel))
     );
 }
 
@@ -211,6 +214,26 @@ async fn receive_from_discord(
                 .send_message(&channel, &point.to_add_message())
                 .unwrap();
             println!("Slack message sent");
+        }
+    }
+}
+
+async fn handle_reminders(
+    mut reminder: watch::Receiver<ReminderType>,
+    sender: slack::Sender,
+    channel: Option<String>,
+) {
+    if let Some(channel) = channel {
+        while let Some(reminder) = reminder.recv().await {
+            match reminder {
+                ReminderType::OneHour => {
+                    sender.send_typing(&channel).unwrap();
+                    sender
+                        .send_message(&channel, &format!("Meeting in one hour!\n{}", agenda::read_agenda()))
+                        .unwrap();
+                },
+                ReminderType::Void => {}
+            }
         }
     }
 }
