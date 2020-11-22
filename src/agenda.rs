@@ -35,6 +35,21 @@ impl Agenda {
     }
 }
 
+impl fmt::Display for Agenda {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let s = self
+            .points
+            .iter()
+            .map(|p| p.to_string())
+            .collect::<Vec<_>>()
+            .join("\n");
+        write!(f, "{}", match s.as_str() {
+            "" => "Empty agenda",
+            _ => &s
+        })
+    }
+}
+
 pub enum Emoji {
     Ok,
     Confused,
@@ -61,16 +76,7 @@ where
         agenda.write();
         Some(Emoji::Ok)
     } else if message.starts_with("!agenda") {
-        let s = read_agenda()
-            .points
-            .iter()
-            .map(|p| p.to_string())
-            .collect::<Vec<_>>()
-            .join("\n");
-        send_message(match s.as_str() {
-            "" => "Agenda is empty".to_string(),
-            _ => s,
-        });
+        send_message(read_agenda().to_string());
         None
     } else if message.starts_with("!clear") {
         Agenda { points: Vec::new() }.write();

@@ -1,4 +1,4 @@
-use crate::agenda::{parse_message, AgendaPoint, Emoji};
+use crate::agenda::{self, parse_message, AgendaPoint, Emoji};
 
 use discord::{
     model::{ChannelId, Event, PossibleServer, ReactionEmoji, UserId},

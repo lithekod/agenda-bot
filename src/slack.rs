@@ -1,4 +1,4 @@
-use crate::agenda::{parse_message, AgendaPoint, Emoji};
+use crate::agenda::{self, parse_message, AgendaPoint, Emoji};
 
 use futures::join;
 use slack::{Event, Message};
