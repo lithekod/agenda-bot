@@ -1,5 +1,6 @@
 mod agenda;
 mod discord;
+mod reminder;
 mod slack;
 
 use crate::agenda::AgendaPoint;
