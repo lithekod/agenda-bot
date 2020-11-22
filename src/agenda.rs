@@ -86,8 +86,8 @@ where
 }
 
 fn read_agenda() -> Agenda {
-    serde_json::from_str::<Agenda>(
-        &fs::read_to_string("agenda.json").expect("Can't read agenda.json"),
-    )
-    .expect("Error parsing agenda.json")
+    match fs::read_to_string("agenda.json") {
+        Ok(s) => serde_json::from_str(&s).expect("Error parsing agenda.json"),
+        Err(_) => Agenda { points: Vec::new()},
+    }
 }
