@@ -43,10 +43,14 @@ impl fmt::Display for Agenda {
             .map(|p| p.to_string())
             .collect::<Vec<_>>()
             .join("\n");
-        write!(f, "{}", match s.as_str() {
-            "" => "Empty agenda",
-            _ => &s
-        })
+        write!(
+            f,
+            "{}",
+            match s.as_str() {
+                "" => "Empty agenda",
+                _ => &s,
+            }
+        )
     }
 }
 

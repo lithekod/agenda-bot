@@ -138,7 +138,7 @@ impl slack::EventHandler for Handler {
                                                         timestamp: Some(msg.ts.unwrap()),
                                                     },
                                                 )
-                                                    .compat(),
+                                                .compat(),
                                             )
                                             .unwrap();
                                     }
@@ -189,7 +189,11 @@ pub async fn handle(
     let slack_sender = client.sender().clone();
 
     let (_, _, _) = join!(
-        spawn(receive_from_discord(receiver, slack_sender.clone(), channel.clone())),
+        spawn(receive_from_discord(
+            receiver,
+            slack_sender.clone(),
+            channel.clone()
+        )),
         spawn(handle_reminders(reminder, slack_sender, channel)),
         spawn_blocking(move || {
             match client.run(&mut handler) {
@@ -229,9 +233,12 @@ async fn handle_reminders(
                 ReminderType::OneHour => {
                     sender.send_typing(&channel).unwrap();
                     sender
-                        .send_message(&channel, &format!("Meeting in one hour!\n{}", agenda::read_agenda()))
+                        .send_message(
+                            &channel,
+                            &format!("Meeting in one hour!\n{}", agenda::read_agenda()),
+                        )
                         .unwrap();
-                },
+                }
                 ReminderType::Void => {}
             }
         }

@@ -175,13 +175,17 @@ async fn handle_reminders(
                     client
                         .lock()
                         .unwrap()
-                        .send_message(channel,
-                                      &format!("Meeting in one hour!\n{}",
-                                              agenda::read_agenda().to_string()),
-                                      "",
-                                      false)
+                        .send_message(
+                            channel,
+                            &format!(
+                                "Meeting in one hour!\n{}",
+                                agenda::read_agenda().to_string()
+                            ),
+                            "",
+                            false,
+                        )
                         .unwrap();
-                },
+                }
                 ReminderType::Void => {}
             }
         }
