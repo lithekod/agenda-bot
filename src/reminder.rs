@@ -35,23 +35,22 @@ impl Reminders {
 pub async fn handle(sender: watch::Sender<ReminderType>) {
     let mut interval = tokio::time::interval(tokio::time::Duration::from_millis(1000));
 
-    let now = Local::now();
-    let next = next_meeting();
-    let mut reminders = read_reminders();
-    for mut reminder in &mut reminders.reminders {
-        match reminder.reminder_type {
-            ReminderType::OneHour => {
-                if in_remind_zone(now, next) && !in_remind_zone(reminder.last_fire, next) {
-                    sender.broadcast(ReminderType::OneHour).unwrap();
-                    reminder.last_fire = now;
-                }
-            }
-            _ => {}
-        }
-    }
-    reminders.write();
-
     loop {
+        let now = Local::now();
+        let next = next_meeting();
+        let mut reminders = read_reminders();
+        for mut reminder in &mut reminders.reminders {
+            match reminder.reminder_type {
+                ReminderType::OneHour => {
+                    if in_remind_zone(now, next) && !in_remind_zone(reminder.last_fire, next) {
+                        sender.broadcast(ReminderType::OneHour).unwrap();
+                        reminder.last_fire = now;
+                    }
+                }
+                _ => {}
+            }
+        }
+        reminders.write();
         interval.tick().await;
     }
 }
