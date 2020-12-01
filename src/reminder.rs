@@ -58,10 +58,12 @@ pub async fn handle(sender: watch::Sender<ReminderType>) {
 fn read_reminders() -> Reminders {
     match fs::read_to_string("reminders.json") {
         Ok(s) => serde_json::from_str(&s).expect("Error parsing reminders.json"),
-        Err(_) => Reminders { reminders: vec![Reminder {
-            reminder_type: ReminderType::OneHour,
-            last_fire: Local::now(),
-        }]},
+        Err(_) => Reminders {
+            reminders: vec![Reminder {
+                reminder_type: ReminderType::OneHour,
+                last_fire: Local::now(),
+            }],
+        },
     }
 }
 
