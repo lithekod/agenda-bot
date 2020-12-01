@@ -169,8 +169,9 @@ async fn handle_reminders(
     channel: Option<ChannelId>,
 ) {
     if let Some(channel) = channel {
-        while let Some(reminder) = reminder.recv().await {
-            match reminder {
+        while reminder.changed().await.is_ok() {
+            let reminder = reminder.borrow();
+            match *reminder {
                 ReminderType::OneHour => {
                     client
                         .lock()

@@ -43,7 +43,7 @@ pub async fn handle(sender: watch::Sender<ReminderType>) {
             match reminder.reminder_type {
                 ReminderType::OneHour => {
                     if in_remind_zone(now, next) && !in_remind_zone(reminder.last_fire, next) {
-                        sender.broadcast(ReminderType::OneHour).unwrap();
+                        sender.send(ReminderType::OneHour).unwrap();
                         reminder.last_fire = now;
                     }
                 }
