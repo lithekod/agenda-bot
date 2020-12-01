@@ -1,7 +1,7 @@
 use crate::agenda::{parse_message, AgendaPoint, Emoji};
 
 use futures::join;
-use slack::{Event, Message};
+use slack::{error::Error, Event, Message};
 use slack_api::{reactions, users};
 use std::{
     collections::{hash_map::Entry, HashMap},
@@ -188,9 +188,15 @@ pub async fn handle(
 
     let (_, _) = join!(
         spawn_blocking(move || {
-            match client.run(&mut handler) {
-                Ok(_) => {}
-                Err(e) => println!("Error: {}", e),
+            loop {
+                match client.run(&mut handler) {
+                    Ok(_) => {}
+                    Err(Error::WebSocket(_)) => println!("Restart slack socket"),
+                    Err(e) => {
+                        println!("Error: {}", e);
+                        break;
+                    }
+                }
             }
         }),
         spawn(receive_from_discord(receiver, slack_sender, channel))
