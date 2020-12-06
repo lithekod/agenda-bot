@@ -1,5 +1,4 @@
-use crate::agenda::{self, parse_message, AgendaPoint, Emoji};
-use crate::reminder::ReminderType;
+use crate::{Service, To, is_to_me, kodapa};
 
 use discord::{
     model::{ChannelId, Event, PossibleServer, ReactionEmoji, UserId},
@@ -10,27 +9,28 @@ use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
 };
-use tokio::{
-    sync::{mpsc, watch},
-    task::{spawn, spawn_blocking},
-};
+use tokio::{runtime::Runtime, sync::{mpsc, oneshot}, task::{spawn_blocking}};
 
 const TOKEN: Option<&str> = None;
 const CHANNEL: Option<ChannelId> = None;
 
+#[derive(Clone)]
 struct Handler {
     _our_id: UserId,
-    connection: discord::Connection,
-    sender: mpsc::UnboundedSender<AgendaPoint>,
     client: Arc<Mutex<discord::Discord>>,
     channel: Option<ChannelId>,
-    display_names: HashMap<UserId, String>,
+    display_names: Arc<Mutex<HashMap<UserId, String>>>,
+}
+
+impl Handler {
+    fn send_message(&self, message: &str) {
+        self.client.lock().unwrap().send_message(self.channel.unwrap(), message, "", false).unwrap();
+    }
 }
 
 pub async fn handle(
-    sender: mpsc::UnboundedSender<AgendaPoint>,
-    receiver: mpsc::UnboundedReceiver<AgendaPoint>,
-    reminder: watch::Receiver<ReminderType>,
+    request_sender: mpsc::UnboundedSender<kodapa::Request>,
+    event_receiver: mpsc::UnboundedReceiver<kodapa::Event>,
 ) {
     println!("Setting up Discord");
 
@@ -42,29 +42,45 @@ pub async fn handle(
         let (connection, _) = client.connect().expect("Discord connect failed"); //TODO
         let _our_id = client.get_current_user().unwrap().id;
         let client = Arc::new(Mutex::new(client));
+        let display_names = Arc::new(Mutex::new(HashMap::new()));
 
         let channel = std::env::var("DISCORD_CHANNEL")
             .map(|id| Some(ChannelId(id.parse::<u64>().unwrap())))
             .unwrap_or(CHANNEL);
 
-        let (_, _, _) = join!(
-            spawn(receive_from_slack(receiver, Arc::clone(&client), channel)),
-            spawn(handle_reminders(reminder, Arc::clone(&client), channel)),
-            spawn_blocking(move || receive_events(&mut Handler {
-                _our_id,
-                connection,
-                sender,
-                client,
-                channel,
-                display_names: HashMap::new(),
-            })),
+        let handler = Handler {
+            _our_id,
+            client: client.clone(),
+            channel,
+            display_names,
+        };
+
+        let _ = join!(
+            receive_kodapa_events(event_receiver, handler.clone()),
+            spawn_blocking(|| receive_discord_events(handler, connection, request_sender)),
         );
     }
 }
 
-fn receive_events(handler: &mut Handler) {
+async fn receive_kodapa_events(
+    mut event_receiver: mpsc::UnboundedReceiver<kodapa::Event>,
+    handler: Handler
+) {
     loop {
-        match handler.connection.recv_event() {
+        let event = event_receiver.recv().await.unwrap();
+        if is_to_me!(event.to, Service::Discord) {
+            handler.send_message(&event.message);
+        }
+    }
+}
+
+fn receive_discord_events(
+    handler: Handler,
+    mut connection: discord::Connection,
+    request_sender: mpsc::UnboundedSender<kodapa::Request>
+) {
+    loop {
+        match connection.recv_event() {
             Ok(Event::ServerCreate(server)) => {
                 if let PossibleServer::Online(server) = server {
                     if handler.channel.is_none() {
@@ -83,7 +99,7 @@ fn receive_events(handler: &mut Handler) {
                     }
                     for member in server.members {
                         if let Some(nick) = member.nick {
-                            handler.display_names.insert(member.user.id, nick);
+                            handler.display_names.lock().unwrap().insert(member.user.id, nick);
                         }
                     }
                 } else if let PossibleServer::Offline(server) = server {
@@ -96,28 +112,25 @@ fn receive_events(handler: &mut Handler) {
             Ok(Event::MessageCreate(message)) => {
                 if let Some(channel) = handler.channel {
                     if channel == message.channel_id {
-                        match parse_message(
-                            &message.content,
-                            if let Some(display_name) =
-                                handler.display_names.get(&message.author.id)
+                        let (feedback_sender, feedback_receiver) = oneshot::channel::<kodapa::Feedback>();
+                        request_sender.send(kodapa::Request{
+                            origin: Service::Discord,
+                            message: message.content,
+                            sender: if let Some(display_name) =
+                                handler.display_names.lock().unwrap().get(&message.author.id)
                             {
-                                display_name
+                                display_name.to_string()
                             } else {
                                 println!("Missing display name for '{}' (see 'Discord display names' in the readme)",
                                          message.author.name);
-                                &message.author.name
+                                message.author.name
                             },
-                            |s: String| {
-                                handler
-                                    .client
-                                    .lock()
-                                    .unwrap()
-                                    .send_message(channel, &s, "", false)
-                                    .unwrap();
-                            },
-                            &handler.sender,
-                        ) {
-                            Some(Emoji::Ok) => {
+                            feedback: Some(feedback_sender),
+                        }).unwrap();
+
+                        let feedback = Runtime::new().unwrap().block_on(feedback_receiver);
+                        match feedback {
+                            Ok(kodapa::Feedback::Ok) => {
                                 handler
                                     .client
                                     .lock()
@@ -137,57 +150,11 @@ fn receive_events(handler: &mut Handler) {
             Ok(_) => {}
             Err(Error::Closed(code, body)) => {
                 println!("Discord closed with code {:?}: {}", code, body);
+                //TODO restart
                 break;
             }
             Err(e) => {
                 println!("Discord error: {:?}", e);
-            }
-        }
-    }
-}
-
-async fn receive_from_slack(
-    mut receiver: mpsc::UnboundedReceiver<AgendaPoint>,
-    client: Arc<Mutex<discord::Discord>>,
-    channel: Option<ChannelId>,
-) {
-    if let Some(channel) = channel {
-        while let Some(point) = receiver.recv().await {
-            println!("Discord received '{}'", point);
-            client
-                .lock()
-                .unwrap()
-                .send_message(channel, &point.to_add_message(), "", false)
-                .unwrap();
-        }
-    }
-}
-
-async fn handle_reminders(
-    mut reminder: watch::Receiver<ReminderType>,
-    client: Arc<Mutex<discord::Discord>>,
-    channel: Option<ChannelId>,
-) {
-    if let Some(channel) = channel {
-        while reminder.changed().await.is_ok() {
-            let reminder = reminder.borrow();
-            match *reminder {
-                ReminderType::OneHour => {
-                    client
-                        .lock()
-                        .unwrap()
-                        .send_message(
-                            channel,
-                            &format!(
-                                "Meeting in one hour!\n{}",
-                                agenda::read_agenda().to_string()
-                            ),
-                            "",
-                            false,
-                        )
-                        .unwrap();
-                }
-                ReminderType::Void => {}
             }
         }
     }

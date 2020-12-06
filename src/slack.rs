@@ -1,25 +1,19 @@
-use crate::agenda::{self, parse_message, AgendaPoint, Emoji};
-use crate::reminder::ReminderType;
+use crate::{Service, To, is_to_me, kodapa};
 
-use futures::join;
 use slack::{error::Error, Event, Message};
 use slack_api::{reactions, users};
 use std::{
     collections::{hash_map::Entry, HashMap},
     sync::{Arc, Mutex},
 };
-use tokio::{
-    runtime::Runtime,
-    sync::{mpsc, watch},
-    task::{spawn, spawn_blocking},
-};
+use tokio::{runtime::Runtime, sync::{mpsc, oneshot, watch}, task::{spawn, spawn_blocking}, try_join};
 use tokio_compat_02::FutureExt;
-
 const TOKEN: Option<&str> = None;
 const CHANNEL: Option<&str> = None;
 
+
 struct Handler {
-    sender: mpsc::UnboundedSender<AgendaPoint>,
+    request_sender: mpsc::UnboundedSender<kodapa::Request>,
     slack_sender: slack::Sender,
     slack_channel: Option<String>,
     print_channels: bool,
@@ -29,13 +23,13 @@ struct Handler {
 
 impl Handler {
     fn new(
-        sender: mpsc::UnboundedSender<AgendaPoint>,
+        request_sender: mpsc::UnboundedSender<kodapa::Request>,
         slack_sender: slack::Sender,
         slack_channel: Option<String>,
         slack_token: String,
     ) -> Self {
         Self {
-            sender,
+            request_sender,
             slack_sender,
             slack_channel: slack_channel.clone(),
             print_channels: slack_channel.is_none(),
@@ -112,18 +106,19 @@ impl slack::EventHandler for Handler {
                                     ),
                                     None => "??".to_string(),
                                 };
-                                match parse_message(
-                                    &msg.text.unwrap_or("".to_string()),
-                                    &user,
-                                    |s: String| {
-                                        self.slack_sender
-                                            .send_message(channel.as_str(), &s)
-                                            .unwrap();
-                                    },
-                                    &self.sender,
-                                ) {
-                                    Some(Emoji::Ok) => {
-                                        let client = slack_api::requests::default_client().unwrap();
+
+                                let (feedback_sender, feedback_receiver) = oneshot::channel::<kodapa::Feedback>();
+                                self.request_sender.send(kodapa::Request{
+                                    origin: Service::Slack,
+                                    message: msg.text.unwrap_or_else(|| "???".to_string()),
+                                    sender: user,
+                                    feedback: Some(feedback_sender),
+                                }).unwrap();
+
+                                let feedback = Runtime::new().unwrap().block_on(feedback_receiver);
+                                match feedback {
+                                    Ok(kodapa::Feedback::Ok) => {
+                                        let client = slack_api::requests::default_client().unwrap(); //TODO save client
                                         Runtime::new()
                                             .unwrap()
                                             .block_on(
@@ -138,7 +133,7 @@ impl slack::EventHandler for Handler {
                                                         timestamp: Some(msg.ts.unwrap()),
                                                     },
                                                 )
-                                                .compat(),
+                                                    .compat(),
                                             )
                                             .unwrap();
                                     }
@@ -160,10 +155,9 @@ impl slack::EventHandler for Handler {
 }
 
 pub async fn handle(
-    sender: mpsc::UnboundedSender<AgendaPoint>,
-    receiver: mpsc::UnboundedReceiver<AgendaPoint>,
-    reminder: watch::Receiver<ReminderType>,
-) {
+    request_sender: mpsc::UnboundedSender<kodapa::Request>,
+    mut event_receiver: mpsc::UnboundedReceiver<kodapa::Event>,
+) -> ! {
     println!("Setting up Slack");
 
     let token = std::env::var("SLACK_API_TOKEN")
@@ -175,79 +169,47 @@ pub async fn handle(
             None => None,
         },
     };
-    let slack_token = token.to_string();
-    let client = spawn_blocking(move || slack::RtmClient::login(&token).unwrap())
-        .await
-        .unwrap();
+    loop {
+        let token_clone = token.clone();
+        let client = spawn_blocking(move || slack::RtmClient::login(&token_clone).unwrap())
+            .await
+            .unwrap();
 
-    let mut handler = Handler::new(
-        sender,
-        client.sender().clone(),
-        channel.clone(),
-        slack_token,
-    );
-    let slack_sender = client.sender().clone();
-
-    let (_, _, _) = join!(
-        spawn(receive_from_discord(
-            receiver,
-            slack_sender.clone(),
-            channel.clone()
-        )),
-        spawn(handle_reminders(reminder, slack_sender, channel)),
-        spawn_blocking(move || {
-            loop {
+        let mut handler = Handler::new(
+            request_sender.clone(),
+            client.sender().clone(),
+            channel.clone(),
+            token.clone(),
+        );
+        let _ = try_join!(
+            receive_kodapa_events(&mut event_receiver, client.sender().clone(), channel.clone()),
+            spawn_blocking(move || {
                 match client.run(&mut handler) {
                     Ok(_) => {}
-                    Err(Error::WebSocket(_)) => println!("Restart slack socket"),
+                    Err(Error::WebSocket(_)) => {
+                        println!("Restarting slack");
+                        return Err(());
+                    }
                     Err(e) => {
                         println!("Error: {}", e);
-                        break;
+                        return Err(());
                     }
                 }
-            }
-        }),
-    );
-}
-
-async fn receive_from_discord(
-    mut receiver: mpsc::UnboundedReceiver<AgendaPoint>,
-    sender: slack::Sender,
-    channel: Option<String>,
-) {
-    if let Some(channel) = channel {
-        while let Some(point) = receiver.recv().await {
-            //TODO Sending messages is very slow sometimes. Have seen delays
-            // from 5 up to 20(!) seconds.
-            sender.send_typing(&channel).unwrap();
-            sender
-                .send_message(&channel, &point.to_add_message())
-                .unwrap();
-            println!("Slack message sent");
-        }
+                Ok(())
+            }),
+        );
     }
 }
 
-async fn handle_reminders(
-    mut reminder: watch::Receiver<ReminderType>,
+async fn receive_kodapa_events(
+    event_receiver: &mut mpsc::UnboundedReceiver<kodapa::Event>,
     sender: slack::Sender,
     channel: Option<String>,
-) {
-    if let Some(channel) = channel {
-        while reminder.changed().await.is_ok() {
-            let reminder = reminder.borrow();
-            match *reminder {
-                ReminderType::OneHour => {
-                    sender.send_typing(&channel).unwrap();
-                    sender
-                        .send_message(
-                            &channel,
-                            &format!("Meeting in one hour!\n{}", agenda::read_agenda()),
-                        )
-                        .unwrap();
-                }
-                ReminderType::Void => {}
-            }
+) -> Result<(), tokio::task::JoinError> {
+    loop {
+        let event = event_receiver.recv().await.unwrap();
+        if is_to_me!(event.to, Service::Slack) {
+            sender.send_message(&channel.clone().unwrap(), &event.message).unwrap();
         }
     }
 }
