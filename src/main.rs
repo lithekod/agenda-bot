@@ -25,9 +25,10 @@ pub enum To {
 macro_rules! is_to_me {
     ($to:expr, $service:pat) => {
         match $to {
-            To::Not($service) => false,
             To::All | To::Only($service) => true,
-            _ => false,
+            To::Only(_) => false,
+            To::Not($service) => false,
+            To::Not(_) => true
         }
     }
 }
