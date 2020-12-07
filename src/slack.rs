@@ -207,9 +207,11 @@ async fn receive_kodapa_events(
     channel: Option<String>,
 ) -> Result<(), tokio::task::JoinError> {
     loop {
-        let event = event_receiver.recv().await.unwrap();
-        if is_to_me!(event.to, Service::Slack) {
-            sender.send_message(&channel.clone().unwrap(), &event.message).unwrap();
+        match event_receiver.recv().await {
+            Some(event) => if is_to_me!(event.to, Service::Slack) {
+                sender.send_message(&channel.clone().unwrap(), &event.message).unwrap();
+            }
+            None => break Ok(()),
         }
     }
 }

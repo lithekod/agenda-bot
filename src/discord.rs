@@ -67,9 +67,11 @@ async fn receive_kodapa_events(
     handler: Handler
 ) {
     loop {
-        let event = event_receiver.recv().await.unwrap();
-        if is_to_me!(event.to, Service::Discord) {
-            handler.send_message(&event.message);
+        match event_receiver.recv().await {
+            Some(event) => if is_to_me!(event.to, Service::Discord) {
+                handler.send_message(&event.message);
+            }
+            None => break,
         }
     }
 }
