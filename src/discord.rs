@@ -179,7 +179,7 @@ async fn handle_reminders(
                         .send_message(
                             channel,
                             &format!(
-                                "Meeting in one hour!\n{}",
+                                "<@&697181979564834897>: Meeting in one hour!\n{}",
                                 agenda::read_agenda().to_string()
                             ),
                             "",
