@@ -1,4 +1,4 @@
-note: see github.com/lithekod/kodapa-2 for the new version using interaction commands.
+note: see [lithekod/kodapa-2](https://github.com/lithekod/kodapa-2) for the new version using interaction commands.
 
 # KODAPA
 "Kontinuerlig och Ovärderlig Distribution Av Påminnelser och Agendor"
